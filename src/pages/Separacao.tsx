@@ -87,9 +87,9 @@ function SeloLoja({ numero, nome, className }: { numero: number | null; nome: st
 /** Caixinha de número (Pedido / Separado / Falta) sobre fundo escuro. */
 function Numero({ rotulo, valor, destaque }: { rotulo: string; valor: number; destaque?: boolean }) {
   return (
-    <div className={cx("min-w-0 flex-1 rounded-2xl px-3 py-2 text-center sm:py-3", destaque ? "bg-amarelo text-navy" : "bg-white/10")}>
+    <div className={cx("min-w-0 flex-1 rounded-2xl px-3 py-[clamp(0.25rem,1.2vh,0.75rem)] text-center", destaque ? "bg-amarelo text-navy" : "bg-white/10")}>
       <p className={cx("text-xs font-medium tracking-wide uppercase sm:text-sm", destaque ? "text-navy/70" : "text-white/60")}>{rotulo}</p>
-      <p className="tabular text-3xl leading-tight font-semibold sm:text-5xl">{fmtNum(valor)}</p>
+      <p className="tabular text-[length:clamp(1.5rem,min(5.5vh,9vw),3rem)] leading-tight font-semibold">{fmtNum(valor)}</p>
     </div>
   );
 }
@@ -424,13 +424,13 @@ export default function Separacao() {
       </div>
 
       {/* Área principal: só a loja de destino */}
-      <main className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:gap-4 sm:p-5">
-        <div className="min-h-0 flex-1">
+      <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-5">
+        <div className="flex flex-[1_0_auto] flex-col">
           {item && !modoRapido ? (
-            <form onSubmit={confirmar} className="flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-borda">
+            <form onSubmit={confirmar} className="flex flex-1 flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-borda">
               <div
                 className={cx(
-                  "flex min-h-0 flex-1 flex-col items-center justify-center gap-2 overflow-hidden px-4 py-3 text-center text-white sm:gap-4",
+                  "flex flex-1 flex-col items-center justify-center gap-[clamp(0.5rem,2vh,1.25rem)] px-4 py-[clamp(0.75rem,3vh,2rem)] text-center text-white",
                   tipo === "ajuste" ? "bg-[#5c3d00]" : "bg-navy",
                 )}
                 aria-live="assertive"
@@ -442,9 +442,9 @@ export default function Separacao() {
                   <SeloLoja
                     numero={item.loja_numero}
                     nome={item.loja_nome}
-                    className="size-16 text-3xl sm:size-24 sm:text-5xl lg:size-32 lg:text-7xl"
+                    className="size-[clamp(3.5rem,min(13vh,22vw),8rem)] text-[length:clamp(1.75rem,min(6.5vh,11vw),4.5rem)]"
                   />
-                  <p className="min-w-0 text-left text-3xl leading-tight font-semibold break-words sm:text-5xl lg:text-7xl">
+                  <p className="min-w-0 text-left text-[length:clamp(1.75rem,min(7vh,9vw),4.75rem)] leading-tight font-semibold break-words">
                     {item.loja_nome}
                   </p>
                 </div>
@@ -570,7 +570,7 @@ export default function Separacao() {
             /* Depois do bip: a loja onde o produto foi colocado, em destaque */
             <div
               className={cx(
-                "flex h-full flex-col items-center justify-center gap-2 overflow-hidden rounded-3xl px-4 text-center sm:gap-4",
+                "flex flex-1 flex-col items-center justify-center gap-[clamp(0.5rem,2vh,1.25rem)] rounded-3xl px-4 py-[clamp(0.75rem,3vh,2rem)] text-center",
                 ultimo.tipo === "ajuste" ? "bg-amarelo-claro text-navy" : escuro ? "bg-navy text-white" : "bg-white text-navy ring-1 ring-borda",
               )}
               aria-live="polite"
@@ -582,12 +582,12 @@ export default function Separacao() {
                 <SeloLoja
                   numero={ultimo.lojaNumero}
                   nome={ultimo.lojaNome}
-                  className={cx(escuro ? "size-16 text-3xl sm:size-24 sm:text-5xl lg:size-32 lg:text-7xl" : "size-14 text-2xl sm:size-20 sm:text-4xl")}
+                  className={cx(escuro ? "size-[clamp(3.5rem,min(13vh,22vw),8rem)] text-[length:clamp(1.75rem,min(6.5vh,11vw),4.5rem)]" : "size-[clamp(3rem,min(9vh,18vw),5rem)] text-[length:clamp(1.5rem,min(4.5vh,9vw),3rem)]")}
                 />
                 <p
                   className={cx(
                     "min-w-0 text-left leading-tight font-semibold break-words",
-                    escuro ? "text-3xl sm:text-5xl lg:text-7xl" : "text-2xl sm:text-4xl",
+                    escuro ? "text-[length:clamp(1.75rem,min(7vh,9vw),4.75rem)]" : "text-[length:clamp(1.5rem,min(4.5vh,8vw),2.5rem)]",
                   )}
                 >
                   {ultimo.lojaNome}
@@ -637,7 +637,7 @@ export default function Separacao() {
             </div>
           ) : (
             /* Esperando o primeiro bip */
-            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-3xl bg-white px-4 text-center ring-1 ring-borda">
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-3xl bg-white px-4 py-6 text-center ring-1 ring-borda">
               <span className="grid size-20 place-items-center rounded-full bg-azul-claro text-azul sm:size-24">
                 <ScanBarcode className="size-10 sm:size-12" aria-hidden />
               </span>
@@ -662,7 +662,7 @@ export default function Separacao() {
         </div>
 
         {/* Últimos bips */}
-        <section className="flex h-40 shrink-0 flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda sm:h-52 lg:h-60" aria-label="Últimos bips">
+        <section className="flex min-h-28 flex-[0_1_10rem] flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda sm:flex-[0_1_13rem] lg:flex-[0_1_15rem]" aria-label="Últimos bips">
           <h2 className="flex shrink-0 items-center gap-2 border-b border-borda px-4 py-2 text-sm font-semibold">
             <History className="size-4 text-azul" aria-hidden /> Últimos bips
           </h2>
