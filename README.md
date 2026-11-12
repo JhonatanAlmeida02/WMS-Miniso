@@ -115,7 +115,7 @@ npx supabase functions serve
 npm run dev
 ```
 
-O app abre em <http://localhost:5180>. No `.env.local`, use a chave anon que o `supabase start` mostra e `VITE_SUPABASE_URL=http://127.0.0.1:54321` (ou `/sb`, que o Vite repassa ao Supabase local, para abrir de outro aparelho da rede).
+O app abre em <http://localhost:5180> e, por padrão, usa o projeto Supabase de produção (`.env.development`). Para usar o Supabase local, crie um `.env.development.local` com a chave anon que o `supabase start` mostra e `VITE_SUPABASE_URL=http://127.0.0.1:54321` (ou `/sb`, que o Vite repassa ao Supabase local, para abrir de outro aparelho da rede).
 
 Testes, com o Supabase local rodando e `SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` definidos:
 ```bash

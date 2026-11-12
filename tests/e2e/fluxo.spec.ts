@@ -111,7 +111,7 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   const celular = await browser.newContext({ ...devices["Pixel 7"], baseURL: "http://localhost:5180" });
   const cel = await celular.newPage();
   await entrar(cel, op.login, op.senha);
-  await expect(cel.getByRole("heading", { name: "Meus pedidos" })).toBeVisible();
+  await expect(cel.getByText("Bipe o produto")).toBeVisible();
   await foto(cel, "05-operador-inicio");
 
   // GTIN que não é dele
@@ -122,25 +122,25 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   // Bip normal: abre o destino, confirma com Enter
   await cel.getByLabel("Bipe ou digite o GTIN").fill(gtin);
   await cel.keyboard.press("Enter");
-  await expect(cel.getByText("Colocar na loja")).toBeVisible();
+  await expect(cel.getByText("Leve para a loja")).toBeVisible();
   await expect(cel.getByText(lojaEsperada.loja_nome).first()).toBeVisible();
   await foto(cel, "06-operador-bip");
   await cel.keyboard.press("Enter");
-  await expect(cel.getByText(/\+1 un\./)).toBeVisible();
+  await expect(cel.getByText("Registrado")).toBeVisible();
 
   // Quantidade acima do pedido é bloqueada
   await cel.getByLabel("Bipe ou digite o GTIN").fill(gtin);
   await cel.keyboard.press("Enter");
   await cel.getByLabel("Quantidade", { exact: true }).fill("999");
-  await expect(cel.getByRole("button", { name: "Confirmar bip" })).toBeDisabled();
+  await expect(cel.getByRole("button", { name: "Confirmar", exact: true })).toBeDisabled();
   await cel.getByRole("button", { name: "Cancelar" }).click();
 
   // Modo rápido: 3 bips seguidos
-  await cel.getByText("Modo rápido:").click();
+  await cel.getByTitle(/Modo rápido/).click();
   for (let i = 0; i < 3; i++) {
     await cel.getByLabel("Bipe ou digite o GTIN").fill(itensOp![1].gtin);
     await cel.keyboard.press("Enter");
-    await expect(cel.getByText("Último bip")).toBeVisible();
+    await expect(cel.getByText("Leve para a loja")).toBeVisible();
     await cel.waitForTimeout(300);
   }
   await foto(cel, "06b-operador-modo-rapido");
