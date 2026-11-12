@@ -42,7 +42,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {configurado ? (
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Suspense fallback={<Carregando />}>
           <Routes>
             <Route path="/login" element={<Login />} />

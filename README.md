@@ -90,6 +90,7 @@ Nova remessa. Formate a coluna GTIN como **texto** no Excel para não perder zer
 2. Rode `npm install` e depois `npm run build`. A pasta `dist/` é o site.
 3. Netlify: novo site a partir deste repositório, com **Build command** `npm run build`, **Publish directory** `dist` e as duas variáveis `VITE_...`. O arquivo `public/_redirects` já cuida das rotas.
 4. Ou Render: **New → Blueprint**, escolha este repositório e confirme. O `render.yaml` cria um Static Site gratuito, que não dorme, já com as variáveis e as rotas configuradas.
+5. Ou GitHub Pages (grátis, repositório público): em **Settings → Pages → Build and deployment → Source**, escolha **GitHub Actions**. A cada push na `main`, o workflow `.github/workflows/pages.yml` publica em `https://<usuario>.github.io/<repositorio>/`.
 
 ### 3. Uso diário
 
