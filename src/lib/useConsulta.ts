@@ -1,20 +1,55 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { mensagemErro, supabase } from "./supabase";
 
-type Tabela = "bips" | "itens_pedido" | "pedidos" | "remessas";
+/**
+ * Tabelas com tempo real. itens_pedido não entra: toda mudança de item vem de
+ * um bip (registrar_bip grava em bips), então quem precisa de saldo escuta bips.
+ */
+type Tabela = "bips" | "pedidos" | "remessas";
 
-let contadorCanal = 0;
+// Um canal por tabela para o app inteiro, compartilhado por todas as telas
+// abertas: cada mudança no banco chega uma vez só (cota de mensagens do Supabase).
+const ouvintes = new Map<Tabela, Set<() => void>>();
+const canais = new Map<Tabela, RealtimeChannel>();
+
+function ouvir(tabela: Tabela, fn: () => void) {
+  let lista = ouvintes.get(tabela);
+  if (!lista) {
+    lista = new Set();
+    ouvintes.set(tabela, lista);
+  }
+  lista.add(fn);
+  if (!canais.has(tabela)) {
+    const canal = supabase
+      .channel(`tabela-${tabela}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: tabela }, () => {
+        for (const f of ouvintes.get(tabela) ?? []) f();
+      })
+      .subscribe();
+    canais.set(tabela, canal);
+  }
+  return () => {
+    lista.delete(fn);
+    if (lista.size === 0) {
+      const canal = canais.get(tabela);
+      if (canal) supabase.removeChannel(canal);
+      canais.delete(tabela);
+    }
+  };
+}
 
 /**
  * Carrega dados e recarrega sozinho quando alguma das tabelas muda
  * (Supabase Realtime). Substitui o Refresh() por timer do Power Apps.
+ * Mudanças em sequência (vários bips) viram um recarregamento só.
  */
 export function useConsulta<T>(
   buscar: () => PromiseLike<{ data: T | null; error: unknown }>,
   deps: unknown[],
-  opcoes: { tabelas?: Tabela[]; ativo?: boolean } = {},
+  opcoes: { tabelas?: Tabela[]; ativo?: boolean; atraso?: number } = {},
 ) {
-  const { tabelas = [], ativo = true } = opcoes;
+  const { tabelas = [], ativo = true, atraso = 800 } = opcoes;
   const [dados, setDados] = useState<T | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -46,19 +81,18 @@ export function useConsulta<T>(
     if (!ativo || !chaveTabelas) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const agendar = () => {
-      clearTimeout(timer);
-      timer = setTimeout(recarregar, 400);
+      if (timer) return; // já tem um recarregamento marcado
+      timer = setTimeout(() => {
+        timer = undefined;
+        recarregar();
+      }, atraso);
     };
-    const canal = supabase.channel(`consulta-${++contadorCanal}`);
-    for (const t of chaveTabelas.split(",")) {
-      canal.on("postgres_changes", { event: "*", schema: "public", table: t }, agendar);
-    }
-    canal.subscribe();
+    const cancelar = (chaveTabelas.split(",") as Tabela[]).map((t) => ouvir(t, agendar));
     return () => {
       clearTimeout(timer);
-      supabase.removeChannel(canal);
+      cancelar.forEach((c) => c());
     };
-  }, [ativo, chaveTabelas, recarregar]);
+  }, [ativo, chaveTabelas, recarregar, atraso]);
 
   return { dados, erro, carregando, recarregar };
 }

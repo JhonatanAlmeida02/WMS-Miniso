@@ -23,7 +23,7 @@ function ItensDoPedido({ pedidoId }: { pedidoId: number }) {
   const { dados } = useConsulta<ItemPedido[]>(
     () => supabase.from("itens_pedido").select("*").eq("pedido_id", pedidoId).order("produto"),
     [pedidoId],
-    { tabelas: ["itens_pedido"] },
+    { tabelas: ["bips"] },
   );
   if (!dados) return <p className="px-5 py-3 text-sm text-suave">Carregando itens…</p>;
   return (
@@ -56,7 +56,7 @@ export default function RemessaDetalhe() {
   const remessa = useConsulta<Remessa>(
     () => supabase.from("v_remessas").select("*").eq("id", remessaId).single(),
     [remessaId],
-    { tabelas: ["remessas", "itens_pedido", "pedidos"] },
+    { tabelas: ["remessas", "bips", "pedidos"] },
   );
   const pedidos = useConsulta<PedidoResumo[]>(
     () =>
@@ -68,7 +68,7 @@ export default function RemessaDetalhe() {
         .order("loja_nome")
         .order("nome"),
     [remessaId],
-    { tabelas: ["itens_pedido", "pedidos"] },
+    { tabelas: ["bips", "pedidos"] },
   );
 
   if (remessa.erro) return <AvisoErro>{remessa.erro}</AvisoErro>;

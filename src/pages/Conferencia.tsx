@@ -39,7 +39,7 @@ function LojasDoGtin({ remessa, gtin }: { remessa: number; gtin: string }) {
         .order("loja_numero", { ascending: true, nullsFirst: false })
         .order("loja_nome"),
     [remessa, gtin],
-    { tabelas: ["itens_pedido"] },
+    { tabelas: ["bips"] },
   );
   if (!dados) return <p className="px-5 py-3 text-sm text-suave">Carregando lojas…</p>;
   return (
@@ -83,7 +83,7 @@ export default function Conferencia() {
         supabase.rpc("conferencia_remessa", { p_remessa: escolhida?.id ?? -1 }).range(de, ate),
       ),
     [escolhida?.id],
-    { tabelas: ["itens_pedido"], ativo: !!escolhida },
+    { tabelas: ["bips"], ativo: !!escolhida, atraso: 2000 },
   );
 
   const linhas = conf.dados ?? [];

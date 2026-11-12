@@ -127,6 +127,7 @@ npm run test:e2e
 
 - `test:db` cobre permissões, a importação e **5 operadores bipando ao mesmo tempo** sem perder bip nem passar do pedido.
 - `test:e2e` cobre o fluxo inteiro no navegador: login, criação de 5 operadores, importação, distribuição, ativação, bip no celular, painel, conferência e log.
+- `test:carga` simula uma remessa real (19 lojas, ~4.000 linhas, ~26 mil unidades) com 5 operadores bipando ao mesmo tempo. Resultado no Supabase local: importação em 0,2 s, busca do GTIN e bip em ~8 ms, painel e conferência em ~10 ms, 570 bips/s sem erro.
 
 ## Identidade visual
 

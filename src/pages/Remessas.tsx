@@ -23,7 +23,7 @@ export default function Remessas() {
       return q;
     },
     [filtro],
-    { tabelas: ["remessas", "itens_pedido"] },
+    { tabelas: ["remessas", "bips"], atraso: 3000 },
   );
 
   return (

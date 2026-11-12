@@ -10,7 +10,8 @@
     "typecheck": "tsc -b",
     "criar-supervisor": "node scripts/criar-supervisor.mjs",
     "test:e2e": "playwright test --trace off",
-    "test:db": "node --test tests/integracao.test.mjs"
+    "test:db": "node --test tests/integracao.test.mjs",
+    "test:carga": "node tests/carga.mjs"
   },
   "dependencies": {
     "@fontsource/prompt": "5.3.0",

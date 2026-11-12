@@ -125,7 +125,7 @@ export default function Separacao() {
         .order("loja_nome")
         .order("nome"),
     [perfil?.id],
-    { tabelas: ["itens_pedido", "pedidos", "remessas"] },
+    { tabelas: ["pedidos", "remessas"] },
   );
 
   const bips = useConsulta<Bip[]>(
@@ -137,7 +137,6 @@ export default function Separacao() {
         .order("criado_em", { ascending: false })
         .limit(QTD_ULTIMOS_BIPS),
     [perfil?.id],
-    { tabelas: ["bips"] },
   );
 
   const lista = pedidos.dados ?? [];

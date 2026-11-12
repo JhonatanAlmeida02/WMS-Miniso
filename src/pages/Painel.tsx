@@ -27,12 +27,12 @@ export default function Painel() {
   const remessas = useConsulta<Remessa[]>(
     () => supabase.from("v_remessas").select("*").eq("status", "ativa").order("ativada_em"),
     [],
-    { tabelas: ["remessas", "itens_pedido", "pedidos"] },
+    { tabelas: ["remessas", "bips", "pedidos"] },
   );
   const pedidos = useConsulta<PedidoResumo[]>(
     () => supabase.from("v_pedidos").select("*").eq("remessa_status", "ativa"),
     [],
-    { tabelas: ["itens_pedido", "pedidos", "remessas"] },
+    { tabelas: ["bips", "pedidos", "remessas"] },
   );
   const usuarios = useConsulta<Perfil[]>(
     () => supabase.from("perfis").select("*").eq("ativo", true).order("nome"),

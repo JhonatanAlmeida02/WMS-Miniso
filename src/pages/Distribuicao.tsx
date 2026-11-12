@@ -25,7 +25,7 @@ export default function Distribuicao() {
         .order("loja_nome")
         .order("nome"),
     [escolhida?.id],
-    { tabelas: ["pedidos", "itens_pedido"], ativo: !!escolhida },
+    { tabelas: ["pedidos", "bips"], ativo: !!escolhida },
   );
   const operadores = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").eq("ativo", true).order("nome"), []);
 
