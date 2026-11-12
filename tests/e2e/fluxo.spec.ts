@@ -135,6 +135,13 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   await expect(cel.getByRole("button", { name: "Confirmar", exact: true })).toBeDisabled();
   await cel.getByRole("button", { name: "Cancelar" }).click();
 
+  // Leitor sem Enter: os dígitos chegam rápido e a busca sai sozinha
+  await cel.getByLabel("Bipe ou digite o GTIN").pressSequentially(gtin, { delay: 5 });
+  await expect(cel.getByText("Leve para a loja")).toBeVisible();
+  await expect(cel.getByText("Total da loja")).toBeVisible();
+  await cel.getByRole("button", { name: "Cancelar" }).click();
+  await expect(cel.getByRole("region", { name: "Últimos bips" }).getByRole("listitem")).toHaveCount(1);
+
   // Modo rápido: 3 bips seguidos
   await cel.getByTitle(/Modo rápido/).click();
   for (let i = 0; i < 3; i++) {
