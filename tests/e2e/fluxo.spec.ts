@@ -79,8 +79,9 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   await expect(page.getByRole("heading", { name: `Remessa ${CODIGO}` })).toBeVisible();
 
   // Lojas: numerar para a ordem de separação
-  const { data: lojas } = await admin.from("lojas").select("id,nome").order("nome");
-  for (const [i, l] of (lojas ?? []).entries()) await admin.from("lojas").update({ numero: i + 1 }).eq("id", l.id);
+  // (só as lojas da planilha de exemplo, sem mexer nas outras do banco)
+  const { data: lojas } = await admin.from("lojas").select("id,nome").like("nome", "Loja %").order("nome");
+  for (const [i, l] of (lojas ?? []).entries()) await admin.from("lojas").update({ numero: 900 + i }).eq("id", l.id);
 
   // Distribuição automática entre os operadores
   await page.getByRole("link", { name: "Distribuir" }).click();

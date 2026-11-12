@@ -44,7 +44,9 @@ export default function NovaRemessa() {
       const r = await lerPlanilhaRemessa(f);
       if (r.linhas.length === 0 && r.erros.length === 0) throw new Error("A planilha não tem linhas de dados.");
       setLeitura(r);
-      if (!codigo) setCodigo(f.name.replace(/\.(xlsx|csv)$/i, "").slice(0, 40));
+      // Código: da coluna NomeRemessa (ex.: REM-BR-028); senão, do nome do arquivo
+      if (r.remessa) setCodigo(r.remessa.slice(0, 40));
+      else if (!codigo) setCodigo(f.name.replace(/\.(xlsx|csv)$/i, "").slice(0, 40));
     } catch (e) {
       setErroArquivo((e as Error).message || "Não consegui ler este arquivo. Use .xlsx ou .csv.");
     } finally {
@@ -55,6 +57,8 @@ export default function NovaRemessa() {
   const resumo = useMemo(() => {
     if (!leitura) return null;
     const existentes = new Set((lojas.dados ?? []).map((l) => l.nome.trim().toLowerCase()));
+    const numeroDa = new Map((lojas.dados ?? []).map((l) => [l.nome.trim().toLowerCase(), l.numero ?? Infinity]));
+    const ordem = (loja: string) => numeroDa.get(loja.trim().toLowerCase()) ?? Infinity;
     const pedidos = new Map<string, { loja: string; itens: number; qtd: number }>();
     for (const l of leitura.linhas) {
       const p = pedidos.get(l.pedido) ?? { loja: l.loja, itens: 0, qtd: 0 };
@@ -64,7 +68,10 @@ export default function NovaRemessa() {
     }
     const nomesLojas = [...new Set(leitura.linhas.map((l) => l.loja))];
     return {
-      pedidos: [...pedidos.entries()].sort((a, b) => a[1].loja.localeCompare(b[1].loja, "pt-BR")),
+      // Na ordem de separação (número da loja); lojas novas no fim
+      pedidos: [...pedidos.entries()].sort(
+        (a, b) => ordem(a[1].loja) - ordem(b[1].loja) || a[1].loja.localeCompare(b[1].loja, "pt-BR"),
+      ),
       lojas: nomesLojas.length,
       lojasNovas: nomesLojas.filter((n) => !existentes.has(n.trim().toLowerCase())),
       produtos: new Set(leitura.linhas.map((l) => l.gtin)).size,
@@ -207,6 +214,16 @@ export default function NovaRemessa() {
                 ))}
               </div>
 
+              {leitura.remessas.length > 1 && (
+                <div className="rounded-2xl border border-amarelo/50 bg-amarelo-claro p-4 text-sm text-[#5c3d00]">
+                  <p className="font-semibold">A planilha tem mais de uma remessa na coluna NomeRemessa</p>
+                  <p className="mt-1">
+                    {leitura.remessas.join(", ")}. Tudo vai entrar como uma remessa só, com o código que você digitar. Se não for isso,
+                    separe a planilha antes de importar.
+                  </p>
+                </div>
+              )}
+
               {leitura.erros.length > 0 && (
                 <div role="alert" className="rounded-2xl border border-erro/25 bg-erro-claro p-4 text-sm text-erro">
                   <p className="flex items-center gap-2 font-semibold">
@@ -233,7 +250,9 @@ export default function NovaRemessa() {
               <Cartao className="overflow-hidden">
                 <div className="flex items-center justify-between border-b border-borda px-5 py-3">
                   <h2 className="font-semibold">Pedidos da planilha</h2>
-                  <span className="text-xs text-suave">{fmtNum(leitura.linhas.length)} linhas válidas</span>
+                  <span className="text-xs text-suave">
+                    {fmtNum(leitura.linhas.length)} linhas válidas{leitura.aba ? ` · aba ${leitura.aba}` : ""}
+                  </span>
                 </div>
                 <div className="max-h-[520px] overflow-auto">
                   <table className="w-full text-sm">

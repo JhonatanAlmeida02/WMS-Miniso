@@ -1,4 +1,4 @@
-import readXlsxFile from "read-excel-file/browser";
+import readXlsxFile, { readSheetNames } from "read-excel-file/browser";
 
 /** Uma linha da planilha de remessa, já normalizada. */
 export interface LinhaRemessa {
@@ -13,7 +13,16 @@ export interface ResultadoLeitura {
   linhas: LinhaRemessa[];
   erros: string[];
   colunas: Record<keyof LinhaRemessa, string>;
+  /** Código da remessa lido da coluna NomeRemessa (se houver e for um só). */
+  remessa: string | null;
+  /** Todos os códigos de remessa diferentes encontrados na coluna. */
+  remessas: string[];
+  /** Aba onde a tabela foi encontrada. */
+  aba: string | null;
 }
+
+// Coluna opcional com o código da remessa (a planilha do Power Apps tem NomeRemessa)
+const ALIASES_REMESSA = ["nomeremessa", "remessa", "codigoremessa", "codremessa", "numeroremessa"];
 
 // Nomes de coluna aceitos (o Power Apps usava NomePedido, Loja, Gtin, Produto, Qtdped)
 const ALIASES: Record<keyof LinhaRemessa, string[]> = {
@@ -89,20 +98,33 @@ export const MODELO_CSV =
 
 export async function lerPlanilhaRemessa(arquivo: File): Promise<ResultadoLeitura> {
   const ehCsv = /\.csv$/i.test(arquivo.name) || arquivo.type === "text/csv";
-  const linhasBrutas: unknown[][] = ehCsv
-    ? lerCsv((await arquivo.text()).replace(/^﻿/, ""))
-    : ((await readXlsxFile(arquivo)) as unknown[][]);
 
-  // O cabeçalho pode não estar na primeira linha (título, logo etc.)
+  // Procura a tabela em todas as abas (a remessa pode não estar na primeira).
+  // O cabeçalho também pode não estar na primeira linha (título, logo etc.).
+  const abas: { nome: string | null; ler: () => Promise<unknown[][]> }[] = ehCsv
+    ? [{ nome: null, ler: async () => lerCsv((await arquivo.text()).replace(/^\uFEFF/, "")) }]
+    : (await readSheetNames(arquivo)).map((nome) => ({
+        nome,
+        ler: async () => (await readXlsxFile(arquivo, { sheet: nome })) as unknown[][],
+      }));
+
+  let linhasBrutas: unknown[][] = [];
+  let aba: string | null = null;
   let inicio = -1;
   let idx = {} as Record<keyof LinhaRemessa, number>;
-  for (let i = 0; i < Math.min(linhasBrutas.length, 30); i++) {
-    const tentativa = acharCabecalho(linhasBrutas[i]);
-    if (Object.values(tentativa).every((v) => v >= 0)) {
-      inicio = i;
-      idx = tentativa;
-      break;
+  for (const a of abas) {
+    const conteudo = await a.ler();
+    for (let i = 0; i < Math.min(conteudo.length, 30); i++) {
+      const tentativa = acharCabecalho(conteudo[i]);
+      if (Object.values(tentativa).every((v) => v >= 0)) {
+        linhasBrutas = conteudo;
+        aba = a.nome;
+        inicio = i;
+        idx = tentativa;
+        break;
+      }
     }
+    if (inicio >= 0) break;
   }
   if (inicio < 0) {
     throw new Error(
@@ -114,6 +136,9 @@ export async function lerPlanilhaRemessa(arquivo: File): Promise<ResultadoLeitur
   const colunas = Object.fromEntries(
     (Object.keys(idx) as (keyof LinhaRemessa)[]).map((k) => [k, texto(cab[idx[k]])]),
   ) as Record<keyof LinhaRemessa, string>;
+
+  const idxRemessa = cab.map(normalizar).findIndex((n) => ALIASES_REMESSA.includes(n));
+  const codigosRemessa = new Set<string>();
 
   const linhas: LinhaRemessa[] = [];
   const erros: string[] = [];
@@ -127,6 +152,7 @@ export async function lerPlanilhaRemessa(arquivo: File): Promise<ResultadoLeitur
       qtd: texto(l[idx.qtd]),
     };
     if (Object.values(bruto).every((v) => v === "")) return; // linha vazia
+    if (idxRemessa >= 0 && texto(l[idxRemessa])) codigosRemessa.add(texto(l[idxRemessa]));
 
     const qtd = Number(bruto.qtd.replace(",", "."));
     const faltando = (["pedido", "loja", "gtin", "produto"] as const).filter((k) => !bruto[k]);
@@ -155,5 +181,13 @@ export async function lerPlanilhaRemessa(arquivo: File): Promise<ResultadoLeitur
     } else lojaDoPedido.set(l.pedido, l.loja);
   }
 
-  return { linhas, erros: [...new Set(erros)], colunas };
+  const remessas = [...codigosRemessa];
+  return {
+    linhas,
+    erros: [...new Set(erros)],
+    colunas,
+    remessa: remessas.length === 1 ? remessas[0] : null,
+    remessas,
+    aba,
+  };
 }
