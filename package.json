@@ -1,0 +1,36 @@
+{
+  "name": "prodigy-wms",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "criar-supervisor": "node scripts/criar-supervisor.mjs",
+    "test:e2e": "playwright test --trace off",
+    "test:db": "node --test tests/integracao.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource/prompt": "5.3.0",
+    "@supabase/supabase-js": "2.119.0",
+    "lucide-react": "1.72.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router": "7.18.5",
+    "read-excel-file": "7.0.3",
+    "sonner": "2.0.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "5.2.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5",
+    "vite": "7.3.8"
+  }
+}
