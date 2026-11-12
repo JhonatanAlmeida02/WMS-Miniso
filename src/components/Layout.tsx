@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import {
+  ChevronLeft,
   ClipboardCheck,
   History,
   LayoutDashboard,
@@ -51,7 +52,10 @@ function Iniciais({ nome }: { nome: string }) {
   );
 }
 
-function Navegacao({ aoNavegar }: { aoNavegar?: () => void }) {
+function Navegacao({ aoNavegar, recolhido = false }: { aoNavegar?: () => void; recolhido?: boolean }) {
+  // Recolhido: só o ícone; o nome vira dica ao passar o mouse e continua
+  // disponível para leitor de tela
+  const rotulo = (texto: string) => (recolhido ? <span className="sr-only">{texto}</span> : <span className="truncate">{texto}</span>);
   return (
     <nav className="flex flex-col gap-1" aria-label="Principal">
       {MENU.map(({ para, texto, icone: Icone }) => (
@@ -59,9 +63,11 @@ function Navegacao({ aoNavegar }: { aoNavegar?: () => void }) {
           key={para}
           to={para}
           onClick={aoNavegar}
+          title={recolhido ? texto : undefined}
           className={({ isActive }) =>
             cx(
-              "relative flex h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors",
+              "relative flex h-11 items-center gap-3 rounded-xl text-[15px] whitespace-nowrap transition-colors",
+              recolhido ? "justify-center px-0" : "px-3",
               isActive ? "bg-white/10 font-medium text-white" : "text-white/70 hover:bg-white/5 hover:text-white",
             )
           }
@@ -69,8 +75,8 @@ function Navegacao({ aoNavegar }: { aoNavegar?: () => void }) {
           {({ isActive }) => (
             <>
               {isActive && <span className="absolute inset-y-2 left-0 w-1 rounded-full bg-amarelo" aria-hidden />}
-              <Icone className={cx("size-5", isActive ? "text-amarelo" : "")} aria-hidden />
-              {texto}
+              <Icone className={cx("size-5 shrink-0", isActive ? "text-amarelo" : "")} aria-hidden />
+              {rotulo(texto)}
             </>
           )}
         </NavLink>
@@ -79,18 +85,38 @@ function Navegacao({ aoNavegar }: { aoNavegar?: () => void }) {
       <NavLink
         to="/separacao"
         onClick={aoNavegar}
-        className="flex h-11 items-center gap-3 rounded-xl bg-ciano px-3 text-[15px] font-medium text-navy hover:bg-[#00b2a3]"
+        title={recolhido ? "Abrir separação" : undefined}
+        className={cx(
+          "flex h-11 items-center gap-3 rounded-xl bg-ciano text-[15px] font-medium whitespace-nowrap text-navy hover:bg-[#00b2a3]",
+          recolhido ? "justify-center px-0" : "px-3",
+        )}
       >
-        <ScanBarcode className="size-5" aria-hidden />
-        Abrir separação
+        <ScanBarcode className="size-5 shrink-0" aria-hidden />
+        {rotulo("Abrir separação")}
       </NavLink>
     </nav>
   );
 }
 
-function Rodape() {
+function Rodape({ recolhido = false }: { recolhido?: boolean }) {
   const { perfil, sair } = useAuth();
   if (!perfil) return null;
+  if (recolhido) {
+    return (
+      <div className="flex flex-col items-center gap-2 border-t border-white/10 pt-4" title={perfil.nome}>
+        <Iniciais nome={perfil.nome} />
+        <button
+          type="button"
+          onClick={sair}
+          className="rounded-lg p-2 text-white/70 hover:bg-white/10 hover:text-white"
+          aria-label="Sair"
+          title="Sair"
+        >
+          <LogOut className="size-5" />
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-3 border-t border-white/10 pt-4">
       <Iniciais nome={perfil.nome} />
@@ -111,20 +137,61 @@ function Rodape() {
   );
 }
 
+const CHAVE_RECOLHIDO = "wms.menuRecolhido";
+
+function lerRecolhido() {
+  try {
+    return localStorage.getItem(CHAVE_RECOLHIDO) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function LayoutSupervisor() {
   const [menuAberto, setMenuAberto] = useState(false);
+  const [recolhido, setRecolhido] = useState(lerRecolhido);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAVE_RECOLHIDO, recolhido ? "1" : "0");
+    } catch {
+      /* sem armazenamento */
+    }
+  }, [recolhido]);
+
   return (
-    <div className="min-h-dvh lg:pl-64">
-      {/* Barra lateral (desktop) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-navy px-4 py-6 lg:flex">
-        <div className="mb-8 px-2">
-          <Logo variante="negativo" className="h-8" />
-          <p className="mt-2 text-xs font-medium tracking-[0.18em] text-white/50 uppercase">WMS · Logística</p>
+    <div className={cx("min-h-dvh transition-[padding] duration-200", recolhido ? "lg:pl-20" : "lg:pl-64")}>
+      {/* Barra lateral (desktop): expande e recolhe */}
+      <aside
+        className={cx(
+          "fixed inset-y-0 left-0 z-30 hidden flex-col bg-navy py-6 transition-[width] duration-200 lg:flex",
+          recolhido ? "w-20 px-3" : "w-64 px-4",
+        )}
+      >
+        <div className={cx("mb-8 flex h-12 flex-col justify-center", recolhido ? "items-center" : "px-2")}>
+          {recolhido ? (
+            <Logo variante="negativo" simbolo className="h-8" />
+          ) : (
+            <>
+              <Logo variante="negativo" className="h-8 self-start" />
+              <p className="mt-2 text-xs font-medium tracking-[0.18em] whitespace-nowrap text-white/50 uppercase">WMS · Logística</p>
+            </>
+          )}
         </div>
-        <div className="flex-1 overflow-y-auto">
-          <Navegacao />
+        <button
+          type="button"
+          onClick={() => setRecolhido((r) => !r)}
+          className="absolute top-8 -right-3.5 grid size-7 place-items-center rounded-full border border-borda bg-white text-navy shadow-md hover:bg-azul-claro"
+          aria-label={recolhido ? "Expandir menu" : "Recolher menu"}
+          aria-expanded={!recolhido}
+          title={recolhido ? "Expandir menu" : "Recolher menu"}
+        >
+          <ChevronLeft className={cx("size-4 transition-transform duration-200", recolhido && "rotate-180")} />
+        </button>
+        <div className="flex-1 overflow-x-hidden overflow-y-auto">
+          <Navegacao recolhido={recolhido} />
         </div>
-        <Rodape />
+        <Rodape recolhido={recolhido} />
       </aside>
 
       {/* Topo (celular/tablet) */}
