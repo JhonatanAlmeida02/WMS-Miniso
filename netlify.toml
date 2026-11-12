@@ -1,0 +1,11 @@
+# Netlify: basta importar este repositório; nada para configurar no painel.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Projeto Supabase "prodigy-wms" (São Paulo). Estes dois valores são públicos
+  # (a chave publishable só funciona junto com o login e as regras do banco).
+  VITE_SUPABASE_URL = "https://rlumdaekikrmeqqzxqst.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "sb_publishable_-qN_RevVUtRSnjhs4-by3g_TeYLcxjw"
