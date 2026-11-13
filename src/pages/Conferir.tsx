@@ -60,16 +60,21 @@ export default function Conferir() {
   const { lista: remessas, escolhida, escolher, carregando: carregandoRemessas } = useRemessaEscolhida(true);
   const confId = Number(params.get("conf")) || null;
 
+  const ehSupervisor = perfil?.papel === "supervisor";
   const lojas = useConsulta<ConferenciaLoja[]>(
-    () =>
-      supabase
+    () => {
+      let q = supabase
         .from("v_conferencia_lojas")
         .select("*")
         .eq("remessa_id", escolhida?.id ?? -1)
         .order("loja_numero", { ascending: true, nullsFirst: false })
-        .order("loja_nome"),
-    [escolhida?.id],
-    { tabelas: ["conferencias"], ativo: !!escolhida && !confId },
+        .order("loja_nome");
+      // Operador vê só as lojas que o supervisor atribuiu a ele para conferir
+      if (!ehSupervisor) q = q.eq("conferente_id", perfil?.id ?? "");
+      return q;
+    },
+    [escolhida?.id, ehSupervisor, perfil?.id],
+    { tabelas: ["conferencias", "pedidos"], ativo: !!escolhida && !confId },
   );
 
   const [abrindo, setAbrindo] = useState<number | null>(null);
@@ -154,6 +159,14 @@ export default function Conferir() {
 
             {carregandoRemessas || (lojas.carregando && !lojas.dados) ? (
               <Carregando />
+            ) : escolhida && escolhida.status !== "pendente" && (lojas.dados ?? []).length === 0 ? (
+              <div className="rounded-2xl bg-white ring-1 ring-borda">
+                <Vazio icone={<ClipboardCheck className="size-8" />} titulo="Nenhuma loja para você conferir">
+                  {ehSupervisor
+                    ? "Esta remessa não tem lojas."
+                    : "Quando o supervisor atribuir uma loja a você na Conferência, ela aparece aqui."}
+                </Vazio>
+              </div>
             ) : !escolhida || escolhida.status === "pendente" ? (
               <div className="rounded-2xl bg-white ring-1 ring-borda">
                 <Vazio icone={<ClipboardCheck className="size-8" />} titulo="Nenhuma remessa para conferir">
@@ -181,6 +194,11 @@ export default function Conferir() {
                           {l.status && ` · conferido ${fmtNum(l.qtd_conferida)}`}
                         </span>
                         <SituacaoLoja l={l} />
+                        {ehSupervisor && (
+                          <span className="block truncate text-xs text-suave">
+                            Conferente: {l.conferente_nome ?? <span className="text-[#7a5200]">não atribuído</span>}
+                          </span>
+                        )}
                       </span>
                       {abrindo === l.pedido_id && <LoaderCircle className="size-5 animate-spin text-azul" />}
                     </button>

@@ -202,10 +202,19 @@ test("conferência física: rebipar, confrontar e finalizar", async () => {
   const { data: ped } = await sup.cliente.from("v_pedidos").select("id,nome").eq("remessa_id", remessaId).eq("nome", "PED-1").single();
   const { data: itens } = await sup.cliente.from("itens_pedido").select("gtin,qtd_separada").eq("pedido_id", ped.id);
 
-  const a = await ops[0].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  // Sem atribuição, operador não confere
+  const semAtrib = await ops[1].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  assert.match(semAtrib.error?.message ?? "", /não foi atribuída a você/);
+  const opAtrib = await ops[0].cliente.rpc("atribuir_conferentes", { p_atribuicoes: [{ pedido_id: ped.id, conferente_id: ops[1].id }] });
+  assert.match(opAtrib.error?.message ?? "", /supervisor/i, "só supervisor atribui");
+  assert.ifError((await sup.cliente.rpc("atribuir_conferentes", { p_atribuicoes: [{ pedido_id: ped.id, conferente_id: ops[1].id }] })).error);
+
+  const a = await ops[1].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
   assert.ifError(a.error);
-  const b = await ops[1].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
-  assert.equal(b.data, a.data, "a mesma conferência aberta é retomada por qualquer um");
+  const b = await sup.cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  assert.equal(b.data, a.data, "o supervisor retoma a mesma conferência aberta");
+  const outro = await ops[0].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  assert.match(outro.error?.message ?? "", /não foi atribuída a você/, "quem não é o conferente não entra");
   const conf = a.data;
 
   // confere tudo certo, menos 1 unidade do primeiro item; e bipa um GTIN de fora
@@ -228,15 +237,18 @@ test("conferência física: rebipar, confrontar e finalizar", async () => {
 
   const { data: loja } = await sup.cliente.from("v_conferencia_lojas").select("*").eq("pedido_id", ped.id).single();
   assert.equal(loja.status, "em_andamento");
+  assert.equal(loja.conferente_id, ops[1].id);
+  const bipAlheio = await ops[0].cliente.rpc("bipar_conferencia", { p_conferencia: conf, p_gtin: itens[0].gtin });
+  assert.match(bipAlheio.error?.message ?? "", /não foi atribuída a você/);
   assert.equal(loja.divergencias, sit.falta + 1);
 
   assert.ifError((await ops[1].cliente.rpc("finalizar_conferencia", { p_conferencia: conf })).error);
   const depois = await ops[1].cliente.rpc("bipar_conferencia", { p_conferencia: conf, p_gtin: itens[0].gtin });
   assert.match(depois.error?.message ?? "", /finalizada/);
 
-  const nova = await ops[0].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  const nova = await ops[1].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
   assert.notEqual(nova.data, conf, "depois de finalizar, conferir de novo abre uma recontagem");
-  assert.ifError((await ops[0].cliente.rpc("finalizar_conferencia", { p_conferencia: nova.data })).error);
+  assert.ifError((await ops[1].cliente.rpc("finalizar_conferencia", { p_conferencia: nova.data })).error);
 
   const anon = createClient(URL, ANON, { auth: { persistSession: false } });
   assert.ok((await anon.rpc("iniciar_conferencia", { p_pedido: ped.id })).error);

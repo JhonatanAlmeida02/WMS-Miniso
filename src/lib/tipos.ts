@@ -121,6 +121,10 @@ export interface ConferenciaLoja {
   qtd_conferida: number;
   bips: number;
   divergencias: number | null;
+  conferente_id: string | null;
+  conferente_nome: string | null;
+  operador_id: string | null;
+  operador_nome: string | null;
 }
 
 /** Uma linha do confronto pedido x separado x conferido. */

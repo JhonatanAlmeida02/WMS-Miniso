@@ -189,8 +189,18 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   await expect(page.getByRole("cell", { name: new RegExp(OPS[0].nome) })).toBeVisible();
   await foto(page, "12-estatisticas");
 
-  // Conferência física: o operador rebipa a caixa de uma loja
+  // Conferência física: sem atribuição, o operador não vê a loja
   await cel.goto("/conferir");
+  await expect(cel.getByText("Nenhuma loja para você conferir")).toBeVisible();
+
+  // Supervisor atribui a conferência da loja ao operador
+  await page.getByRole("link", { name: "Conferência" }).click();
+  await page.getByRole("tab", { name: "Conferência física" }).click();
+  await page.getByLabel(`Conferente da loja ${lojaEsperada.loja_nome}`).selectOption(perfilOp!.id);
+  await expect(page.getByText(`Conferente de ${lojaEsperada.loja_nome} atualizado`)).toBeVisible();
+
+  // O operador rebipa a caixa da loja
+  await cel.reload();
   await cel.getByRole("button", { name: new RegExp(lojaEsperada.loja_nome) }).click();
   await expect(cel.getByText("Bipe os produtos da caixa")).toBeVisible();
   await cel.getByLabel("Bipe o produto para conferir").fill(gtin);
@@ -205,10 +215,8 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   await cel.getByRole("button", { name: "Finalizar conferência" }).click();
   await expect(cel.getByText("Resultado da conferência")).toBeVisible();
 
-  // Supervisor vê o resultado na aba Conferência física
-  await page.getByRole("link", { name: "Conferência" }).click();
-  await page.getByRole("tab", { name: "Conferência física" }).click();
-  await expect(page.getByText(/divergência/).first()).toBeVisible();
+  // Supervisor vê o resultado na aba Conferência física (atualiza sozinho)
+  await expect(page.getByText(/\d+ divergências?/).first()).toBeVisible({ timeout: 20_000 });
   await foto(page, "14-conferencia-fisica");
 
   // Celular do supervisor (menu)

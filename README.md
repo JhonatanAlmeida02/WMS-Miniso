@@ -21,7 +21,7 @@ Power Automate nem SharePoint.
 - **Log de bips:** filtros por GTIN, tipo, loja e operador, com exportação CSV.
 - **Usuários:** cria, edita, redefine senha, desativa e reativa.
 - **Lojas:** número de cada loja, que define a ordem da separação.
-- **Conferência física:** em cada loja, bipa-se de novo o que está na caixa. A tela avisa na hora quando sobra ou quando o produto não é daquela loja, e no fim mostra o confronto **conferido × separado × pedido**. O supervisor acompanha loja por loja e exporta as divergências.
+- **Conferência física:** o supervisor escolhe quem confere cada loja (ou usa "Dividir automaticamente", que evita dar a alguém a loja que ele mesmo separou), e o operador só vê as lojas atribuídas a ele. Em cada loja, bipa-se de novo o que está na caixa. A tela avisa na hora quando sobra ou quando o produto não é daquela loja, e no fim mostra o confronto **conferido × separado × pedido**. O supervisor acompanha loja por loja e exporta as divergências.
 - **Estatísticas:** tempo de separação, tempo ativo (pausas de mais de 5 min entre bips não contam), unidades por minuto, segundos por unidade, ranking por operador, unidades por hora e tempo por loja, por remessa ou por período.
 
 **Operador (celular ou coletor)**

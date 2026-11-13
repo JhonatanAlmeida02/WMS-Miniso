@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { CheckCheck, ClipboardCheck, Download } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { toast } from "sonner";
+import { CheckCheck, ClipboardCheck, Download, Shuffle, TriangleAlert } from "lucide-react";
+import { mensagemErro, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { baixarCsv } from "../lib/buscarTudo";
 import { fmtDataHora, fmtNum } from "../lib/formato";
-import type { ConferenciaLoja, LinhaConfronto, Remessa } from "../lib/tipos";
+import type { ConferenciaLoja, LinhaConfronto, Perfil, Remessa } from "../lib/tipos";
 import { Confronto } from "./Confronto";
 import { SeloLoja } from "./SeloLoja";
 import { Botao, Cartao, Carregando, Modal, Selo, Vazio, cx } from "./ui";
@@ -40,8 +41,49 @@ export function ConferenciaFisica({ remessa }: { remessa: Remessa }) {
         .order("loja_numero", { ascending: true, nullsFirst: false })
         .order("loja_nome"),
     [remessa.id],
-    { tabelas: ["conferencias"] },
+    { tabelas: ["conferencias", "pedidos"] },
   );
+  const usuarios = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").eq("ativo", true).order("nome"), []);
+  const equipe = usuarios.dados ?? [];
+  const [salvando, setSalvando] = useState<number | "todos" | null>(null);
+
+  async function atribuir(atrib: { pedido_id: number; conferente_id: string | null }[]) {
+    const { error } = await supabase.rpc("atribuir_conferentes", { p_atribuicoes: atrib });
+    if (error) {
+      toast.error(mensagemErro(error));
+      return false;
+    }
+    lojas.recarregar();
+    return true;
+  }
+
+  /** Divide as lojas sem conferente entre os operadores, equilibrando as unidades
+   *  e evitando que alguém confira a loja que ele mesmo separou. */
+  async function dividir() {
+    const semConferente = (lojas.dados ?? []).filter((l) => !l.conferente_id && l.status !== "finalizada");
+    const operadores = equipe.filter((u) => u.papel === "operador");
+    if (!semConferente.length) {
+      toast.info("Todas as lojas já têm conferente.");
+      return;
+    }
+    if (!operadores.length) {
+      toast.info("Cadastre operadores primeiro.");
+      return;
+    }
+    const carga = new Map(operadores.map((o) => [o.id, 0]));
+    for (const l of lista) if (l.conferente_id && carga.has(l.conferente_id)) carga.set(l.conferente_id, (carga.get(l.conferente_id) ?? 0) + l.qtd_separada);
+    const atrib: { pedido_id: number; conferente_id: string }[] = [];
+    for (const l of [...semConferente].sort((a, b) => b.qtd_separada - a.qtd_separada)) {
+      const candidatos = [...carga.entries()].sort((a, b) => a[1] - b[1]);
+      const escolhido = candidatos.find(([id]) => id !== l.operador_id) ?? candidatos[0];
+      atrib.push({ pedido_id: l.pedido_id, conferente_id: escolhido[0] });
+      carga.set(escolhido[0], escolhido[1] + l.qtd_separada);
+    }
+    setSalvando("todos");
+    const ok = await atribuir(atrib);
+    setSalvando(null);
+    if (ok) toast.success(`${atrib.length} lojas atribuídas para conferência`);
+  }
   const [aberta, setAberta] = useState<ConferenciaLoja | null>(null);
   const [linhas, setLinhas] = useState<LinhaConfronto[] | null>(null);
 
@@ -107,16 +149,24 @@ export function ConferenciaFisica({ remessa }: { remessa: Remessa }) {
 
       <Cartao className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borda px-5 py-3">
-          <h2 className="font-semibold">Lojas</h2>
-          <Botao variante="secundario" tamanho="sm" icone={<Download className="size-4" />} onClick={exportar} disabled={!lista.some((l) => l.conferencia_id)}>
-            Exportar divergências
-          </Botao>
+          <div>
+            <h2 className="font-semibold">Lojas</h2>
+            <p className="text-xs text-suave">Escolha quem confere cada loja. O operador só vê as lojas atribuídas a ele.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Botao variante="secundario" tamanho="sm" icone={<Shuffle className="size-4" />} onClick={dividir} carregando={salvando === "todos"}>
+              Dividir automaticamente
+            </Botao>
+            <Botao variante="secundario" tamanho="sm" icone={<Download className="size-4" />} onClick={exportar} disabled={!lista.some((l) => l.conferencia_id)}>
+              Exportar divergências
+            </Botao>
+          </div>
         </div>
         {lista.length === 0 ? (
           <Vazio icone={<ClipboardCheck className="size-8" />} titulo="Nenhuma loja nesta remessa" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[1000px] text-sm">
               <thead className="bg-fundo text-left text-xs font-semibold tracking-wide text-suave uppercase">
                 <tr>
                   <th className="px-5 py-3">Loja</th>
@@ -124,6 +174,7 @@ export function ConferenciaFisica({ remessa }: { remessa: Remessa }) {
                   <th className="px-3 py-3 text-right">Separado</th>
                   <th className="px-3 py-3 text-right">Conferido</th>
                   <th className="px-3 py-3">Conferente</th>
+                  <th className="px-3 py-3">Conferido por</th>
                   <th className="px-3 py-3 text-right">Duração</th>
                   <th className="px-5 py-3" />
                 </tr>
@@ -145,6 +196,41 @@ export function ConferenciaFisica({ remessa }: { remessa: Remessa }) {
                     </td>
                     <td className="tabular px-3 py-2.5 text-right">{fmtNum(l.qtd_separada)}</td>
                     <td className="tabular px-3 py-2.5 text-right font-semibold">{l.status ? fmtNum(l.qtd_conferida) : "—"}</td>
+                    <td className="px-3 py-2.5">
+                      <label className="sr-only" htmlFor={`conf-${l.pedido_id}`}>
+                        Conferente da loja {l.loja_nome}
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          id={`conf-${l.pedido_id}`}
+                          value={l.conferente_id ?? ""}
+                          disabled={salvando !== null}
+                          onChange={async (e) => {
+                            setSalvando(l.pedido_id);
+                            const ok = await atribuir([{ pedido_id: l.pedido_id, conferente_id: e.target.value || null }]);
+                            setSalvando(null);
+                            if (ok) toast.success(`Conferente de ${l.loja_nome} atualizado`);
+                          }}
+                          className={cx(
+                            "h-9 w-full min-w-40 rounded-lg border bg-white px-2 text-sm",
+                            l.conferente_id ? "border-borda" : "border-amarelo text-[#7a5200]",
+                          )}
+                        >
+                          <option value="">Sem conferente</option>
+                          {equipe.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.nome}
+                            </option>
+                          ))}
+                        </select>
+                        {l.conferente_id && l.conferente_id === l.operador_id && (
+                          <span title="Quem vai conferir é quem separou esta loja" className="text-[#7a5200]">
+                            <TriangleAlert className="size-4" aria-label="Mesma pessoa que separou" />
+                          </span>
+                        )}
+                      </div>
+                      {l.operador_nome && <span className="block text-xs text-suave">Separou: {l.operador_nome}</span>}
+                    </td>
                     <td className="px-3 py-2.5">
                       {l.finalizada_por_nome ?? l.iniciada_por_nome ?? "—"}
                       {l.finalizada_em && <span className="block text-xs text-suave">{fmtDataHora(l.finalizada_em)}</span>}
