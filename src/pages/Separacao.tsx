@@ -10,7 +10,7 @@ import { somAviso, somErro, somOk, vibrar } from "../lib/som";
 import type { Bip, ItemDoGtin, PedidoResumo, TipoBip } from "../lib/tipos";
 import { Logo } from "../components/Logo";
 import { useLeitor } from "../lib/useLeitor";
-import { SeloLoja } from "../components/SeloLoja";
+import { SeloLoja, textoLoja } from "../components/SeloLoja";
 import { Barra, Carregando, Modal, Vazio, cx } from "../components/ui";
 
 const CHAVE_MODO_RAPIDO = "wms.modoRapido";
@@ -36,15 +36,26 @@ interface Ultimo {
   pedido: number;
 }
 
-/** Caixinha de número (Pedido / Separado / Falta) sobre fundo escuro. */
-function Numero({ rotulo, valor, destaque }: { rotulo: string; valor: number; destaque?: boolean }) {
+/** "Falta": o número que importa, grande e no centro. */
+function Falta({ valor }: { valor: number }) {
   return (
-    <div className={cx("min-w-0 flex-1 rounded-2xl px-3 py-[clamp(0.25rem,1.2vh,0.75rem)] text-center", destaque ? "bg-amarelo text-navy" : "bg-white/10")}>
-      <p className={cx("text-xs font-medium tracking-wide uppercase sm:text-sm", destaque ? "text-navy/70" : "text-white/60")}>{rotulo}</p>
-      <p className="tabular text-[length:clamp(1.5rem,min(5.5vh,9vw),3rem)] leading-tight font-semibold">{fmtNum(valor)}</p>
+    <div className="rounded-[clamp(1rem,2.5vh,1.75rem)] bg-amarelo px-[clamp(1.75rem,6vw,3.5rem)] py-[clamp(0.4rem,1.4vh,0.9rem)] text-center text-navy">
+      <p className="text-xs font-semibold tracking-[0.2em] text-navy/70 uppercase sm:text-sm">Falta</p>
+      <p className="tabular text-[length:clamp(2.75rem,min(11vh,18vw),6.5rem)] leading-none font-bold">{fmtNum(valor)}</p>
     </div>
   );
 }
+
+/** Pedido / Separado: pequenos e discretos, lado a lado. */
+function NumeroPequeno({ rotulo, valor }: { rotulo: string; valor: number }) {
+  return (
+    <div className="min-w-[5.5rem] px-[clamp(0.75rem,2.5vw,1.5rem)] py-[clamp(0.3rem,1vh,0.6rem)] text-center">
+      <p className="text-[11px] font-medium tracking-wide text-white/55 uppercase sm:text-xs">{rotulo}</p>
+      <p className="tabular text-xl leading-tight font-semibold text-white/90 sm:text-2xl">{fmtNum(valor)}</p>
+    </div>
+  );
+}
+
 
 function hora(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -400,20 +411,23 @@ export default function Separacao() {
                 <p className="text-xs font-semibold tracking-[0.2em] text-amarelo uppercase sm:text-base">
                   {tipo === "ajuste" ? "Ajuste na loja" : "Leve para a loja"}
                 </p>
-                <div className="flex max-w-full items-center gap-3 sm:gap-5">
-                  <SeloLoja
-                    numero={item.loja_numero}
-                    nome={item.loja_nome}
-                    className="size-[clamp(3.5rem,min(13vh,22vw),8rem)] text-[length:clamp(1.75rem,min(6.5vh,11vw),4.5rem)]"
-                  />
-                  <p className="min-w-0 text-left text-[length:clamp(1.75rem,min(7vh,9vw),4.75rem)] leading-tight font-semibold break-words">
+                {/* Loja: número e nome juntos no verde */}
+                <div className="flex max-w-full items-center gap-[clamp(0.75rem,2vw,1.5rem)] rounded-[clamp(1rem,2.5vh,1.75rem)] bg-ciano px-[clamp(1rem,3vw,2.25rem)] py-[clamp(0.5rem,1.8vh,1.1rem)] text-navy">
+                  <span className="tabular text-[length:clamp(2rem,min(8vh,12vw),5.5rem)] leading-none font-bold">
+                    {textoLoja(item.loja_numero, item.loja_nome)}
+                  </span>
+                  <span className="w-0.5 self-stretch rounded-full bg-navy/20" aria-hidden />
+                  <span className="min-w-0 text-left text-[length:clamp(1.6rem,min(6.5vh,8.5vw),4.5rem)] leading-tight font-semibold break-words">
                     {item.loja_nome}
-                  </p>
+                  </span>
                 </div>
-                <div className="flex w-full max-w-2xl gap-2 sm:gap-3">
-                  <Numero rotulo="Pedido" valor={item.qtd_pedido} />
-                  <Numero rotulo="Separado" valor={item.qtd_separada} />
-                  <Numero rotulo="Falta" valor={falta} destaque />
+
+                <Falta valor={falta} />
+
+                {/* Pedido e Separado juntos, num grupo à parte, mais discreto */}
+                <div className="mt-[clamp(0.25rem,1.5vh,1rem)] flex items-stretch divide-x divide-white/15 rounded-2xl bg-white/8">
+                  <NumeroPequeno rotulo="Pedido" valor={item.qtd_pedido} />
+                  <NumeroPequeno rotulo="Separado" valor={item.qtd_separada} />
                 </div>
               </div>
 
