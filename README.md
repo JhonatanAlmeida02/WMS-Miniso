@@ -25,6 +25,7 @@ Power Automate nem SharePoint.
 - **Estatísticas:** tempo de separação, tempo ativo (pausas de mais de 5 min entre bips não contam), unidades por minuto, segundos por unidade, ranking por operador, unidades por hora e tempo por loja, por remessa ou por período.
 
 **Operador (celular ou coletor)**
+- **Tela de início:** ao entrar, o operador escolhe **Separar** ou **Conferir** e vê o próprio andamento: o que falta nas lojas dele, as conferências atribuídas e os números do dia (unidades, ritmo, tempo ativo, ajustes).
 - Bipa o GTIN e o app mostra **em qual loja colocar**, em letras grandes, com pedido, já separado e quanto falta. Confirma com Enter.
 - **Modo rápido:** cada bip já confirma 1 unidade na próxima loja. Serve para leitor de código de barras.
 - **Conferir:** botão no topo da separação para fazer a conferência física pelo celular ou coletor.

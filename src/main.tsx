@@ -19,13 +19,14 @@ const Usuarios = lazy(() => import("./pages/Usuarios"));
 const Lojas = lazy(() => import("./pages/Lojas"));
 const Separacao = lazy(() => import("./pages/Separacao"));
 const Conferir = lazy(() => import("./pages/Conferir"));
+const InicioOperador = lazy(() => import("./pages/InicioOperador"));
 const Estatisticas = lazy(() => import("./pages/Estatisticas"));
 
 function Inicio() {
   const { carregando, perfil } = useAuth();
   if (carregando) return <Carregando />;
   if (!perfil) return <Navigate to="/login" replace />;
-  return <Navigate to={perfil.papel === "supervisor" ? "/painel" : "/separacao"} replace />;
+  return <Navigate to={perfil.papel === "supervisor" ? "/painel" : "/inicio"} replace />;
 }
 
 function SemConfiguracao() {
@@ -54,6 +55,14 @@ createRoot(document.getElementById("root")!).render(
               element={
                 <Protegido>
                   <Separacao />
+                </Protegido>
+              }
+            />
+            <Route
+              path="/inicio"
+              element={
+                <Protegido>
+                  <InicioOperador />
                 </Protegido>
               }
             />

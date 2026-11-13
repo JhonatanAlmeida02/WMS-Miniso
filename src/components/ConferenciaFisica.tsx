@@ -232,7 +232,7 @@ export function ConferenciaFisica({ remessa }: { remessa: Remessa }) {
                       {l.operador_nome && <span className="block text-xs text-suave">Separou: {l.operador_nome}</span>}
                     </td>
                     <td className="px-3 py-2.5">
-                      {l.finalizada_por_nome ?? l.iniciada_por_nome ?? "—"}
+                      {l.finalizada_por_nome ?? (l.status === "em_andamento" ? <span className="text-azul-escuro">{l.bips} leituras…</span> : "—")}
                       {l.finalizada_em && <span className="block text-xs text-suave">{fmtDataHora(l.finalizada_em)}</span>}
                     </td>
                     <td className="tabular px-3 py-2.5 text-right">{duracao(l.iniciada_em, l.finalizada_em)}</td>

@@ -36,7 +36,7 @@ export function Protegido({ supervisor, children }: { supervisor?: boolean; chil
   const local = useLocation();
   if (carregando) return <Carregando />;
   if (!sessao || !perfil) return <Navigate to="/login" replace state={{ de: local.pathname }} />;
-  if (supervisor && perfil.papel !== "supervisor") return <Navigate to="/separacao" replace />;
+  if (supervisor && perfil.papel !== "supervisor") return <Navigate to="/inicio" replace />;
   return <>{children}</>;
 }
 

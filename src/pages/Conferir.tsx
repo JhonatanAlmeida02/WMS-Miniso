@@ -40,7 +40,7 @@ function SituacaoLoja({ l }: { l: ConferenciaLoja }) {
   if (l.status === "em_andamento")
     return (
       <span className="text-xs font-semibold text-azul-escuro">
-        Em conferência{l.iniciada_por_nome ? ` · ${l.iniciada_por_nome}` : ""}
+        Em andamento · {l.bips > 0 ? `${l.bips} ${l.bips === 1 ? "leitura" : "leituras"}` : "nenhuma leitura ainda"}
       </span>
     );
   return l.divergencias ? (
@@ -94,7 +94,7 @@ export default function Conferir() {
     setParams({ remessa: String(l.remessa_id), conf: String(data) });
   }
 
-  const voltarPara = perfil?.papel === "supervisor" ? "/conferencia" : "/separacao";
+  const voltarPara = perfil?.papel === "supervisor" ? "/conferencia" : "/inicio";
 
   return (
     <div className="flex h-dvh flex-col bg-fundo">

@@ -112,6 +112,11 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   const celular = await browser.newContext({ ...devices["Pixel 7"], baseURL: "http://localhost:5180" });
   const cel = await celular.newPage();
   await entrar(cel, op.login, op.senha);
+  // Entra na tela de início do operador: Separar / Conferir e o andamento dele
+  await expect(cel.getByText(`Olá, ${op.nome.split(" ")[0]}`)).toBeVisible();
+  await expect(cel.getByText("Minhas lojas para separar")).toBeVisible();
+  await foto(cel, "04b-operador-inicio");
+  await cel.getByRole("link", { name: /Separar/ }).click();
   await expect(cel.getByText("Bipe o produto")).toBeVisible();
   await foto(cel, "05-operador-inicio");
 
@@ -228,7 +233,7 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
 
   // Operador não acessa telas de supervisor
   await cel.goto("/painel");
-  await expect(cel).toHaveURL(/\/separacao/);
+  await expect(cel).toHaveURL(/\/inicio/);
 
   await celular.close();
   await celSup.close();

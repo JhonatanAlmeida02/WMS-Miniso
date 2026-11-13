@@ -277,11 +277,14 @@ export default function Separacao() {
       {/* Topo */}
       <header className="shrink-0 bg-navy text-white">
         <div className="flex h-14 items-center gap-3 px-3 sm:h-16 sm:px-6">
-          {perfil?.papel === "supervisor" && (
-            <Link to="/painel" className="rounded-lg p-2 hover:bg-white/10" aria-label="Voltar ao painel" title="Voltar ao painel">
-              <ArrowLeft className="size-5" />
-            </Link>
-          )}
+          <Link
+            to={perfil?.papel === "supervisor" ? "/painel" : "/inicio"}
+            className="rounded-lg p-2 hover:bg-white/10"
+            aria-label={perfil?.papel === "supervisor" ? "Voltar ao painel" : "Voltar ao início"}
+            title={perfil?.papel === "supervisor" ? "Voltar ao painel" : "Voltar ao início"}
+          >
+            <ArrowLeft className="size-5" />
+          </Link>
           <Logo simbolo className="h-7 shrink-0 sm:h-8" />
           <div className="min-w-0 flex-1">
             <p className="text-[15px] leading-tight font-semibold">Separação</p>
