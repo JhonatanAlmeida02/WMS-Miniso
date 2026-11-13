@@ -18,6 +18,8 @@ const LogBips = lazy(() => import("./pages/LogBips"));
 const Usuarios = lazy(() => import("./pages/Usuarios"));
 const Lojas = lazy(() => import("./pages/Lojas"));
 const Separacao = lazy(() => import("./pages/Separacao"));
+const Conferir = lazy(() => import("./pages/Conferir"));
+const Estatisticas = lazy(() => import("./pages/Estatisticas"));
 
 function Inicio() {
   const { carregando, perfil } = useAuth();
@@ -56,6 +58,14 @@ createRoot(document.getElementById("root")!).render(
               }
             />
             <Route
+              path="/conferir"
+              element={
+                <Protegido>
+                  <Conferir />
+                </Protegido>
+              }
+            />
+            <Route
               element={
                 <Protegido supervisor>
                   <LayoutSupervisor />
@@ -69,6 +79,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/distribuicao" element={<Distribuicao />} />
               <Route path="/conferencia" element={<Conferencia />} />
               <Route path="/bips" element={<LogBips />} />
+              <Route path="/estatisticas" element={<Estatisticas />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/lojas" element={<Lojas />} />
             </Route>

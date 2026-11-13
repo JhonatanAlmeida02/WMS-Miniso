@@ -1,13 +1,14 @@
 import { Fragment, useMemo, useState } from "react";
-import { Link } from "react-router";
-import { CheckCheck, ChevronDown, ClipboardCheck, Download, Search } from "lucide-react";
+import { Link, useSearchParams } from "react-router";
+import { CheckCheck, ChevronDown, ClipboardCheck, Download, ScanBarcode, Search } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { useRemessaEscolhida } from "../lib/useRemessaEscolhida";
 import { baixarCsv, buscarTudo } from "../lib/buscarTudo";
 import { alterarStatus } from "../lib/remessa";
 import { fmtNum, nomeLoja } from "../lib/formato";
-import { Barra, Botao, Cartao, Carregando, SeloStatus, Selecao, Titulo, Vazio, cx, useConfirmacao } from "../components/ui";
+import { Barra, Botao, Cartao, Carregando, SeloStatus, Selecao, Titulo, Vazio, classesBotao, cx, useConfirmacao } from "../components/ui";
+import { ConferenciaFisica } from "../components/ConferenciaFisica";
 
 interface LinhaConferencia {
   gtin: string;
@@ -76,6 +77,13 @@ export default function Conferencia() {
   const [aberto, setAberto] = useState<string | null>(null);
   const [confirmar, dialogo] = useConfirmacao();
   const [ocupado, setOcupado] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const aba = params.get("aba") === "fisica" ? "fisica" : "separacao";
+  const trocarAba = (a: "separacao" | "fisica") => {
+    const n = new URLSearchParams(params);
+    n.set("aba", a);
+    setParams(n, { replace: true });
+  };
 
   const conf = useConsulta<LinhaConferencia[]>(
     () =>
@@ -159,13 +167,22 @@ export default function Conferencia() {
       {dialogo}
       <Titulo
         titulo="Conferência"
-        descricao="Produtos em que o separado não bate com o pedido, loja por loja."
+        descricao={
+          aba === "separacao"
+            ? "Produtos em que o separado não bate com o pedido, loja por loja."
+            : "Rebipagem das caixas de cada loja, confrontada com o que foi separado."
+        }
         acoes={
           escolhida && (
             <>
-              <Botao variante="secundario" icone={<Download className="size-4" />} onClick={exportar}>
-                Exportar divergências
-              </Botao>
+              <Link to={`/conferir?remessa=${escolhida.id}`} className={classesBotao("azul")}>
+                <ScanBarcode className="size-4" aria-hidden /> Conferir (bipar)
+              </Link>
+              {aba === "separacao" && (
+                <Botao variante="secundario" icone={<Download className="size-4" />} onClick={exportar}>
+                  Exportar divergências
+                </Botao>
+              )}
               {escolhida.status !== "concluida" && (
                 <Botao variante="sucesso" icone={<CheckCheck className="size-4" />} onClick={concluir} carregando={ocupado}>
                   Concluir remessa
@@ -207,6 +224,33 @@ export default function Conferencia() {
             )}
           </Cartao>
 
+          <div className="mb-4 flex gap-1 rounded-xl bg-white p-1 ring-1 ring-borda sm:w-fit" role="tablist" aria-label="Tipo de conferência">
+            {(
+              [
+                ["separacao", "Separação × pedido"],
+                ["fisica", "Conferência física"],
+              ] as const
+            ).map(([k, t]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={aba === k}
+                onClick={() => trocarAba(k)}
+                className={cx(
+                  "h-10 flex-1 rounded-lg px-4 text-sm font-medium transition-colors sm:flex-none",
+                  aba === k ? "bg-navy text-white" : "text-navy hover:bg-azul-claro/60",
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {aba === "fisica" && escolhida ? (
+            <ConferenciaFisica remessa={escolhida} />
+          ) : (
+          <>
           <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Cartao className="p-4">
               <p className="text-xs text-suave">Produtos</p>
@@ -320,6 +364,8 @@ export default function Conferencia() {
               </div>
             )}
           </Cartao>
+          </>
+          )}
         </>
       )}
     </>

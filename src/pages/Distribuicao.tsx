@@ -14,6 +14,8 @@ export default function Distribuicao() {
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [paraOperador, setParaOperador] = useState("");
   const [salvando, setSalvando] = useState(false);
+  // Quem entra no "Dividir automaticamente" (desmarque quem não está trabalhando hoje)
+  const [fora, setFora] = useState<Set<string>>(new Set());
 
   const pedidos = useConsulta<PedidoResumo[]>(
     () =>
@@ -64,9 +66,13 @@ export default function Distribuicao() {
   /** Divide os selecionados (ou os sem operador) entre os operadores, equilibrando unidades que faltam. */
   function dividir() {
     const alvo = selecionados.size ? lista.filter((p) => selecionados.has(p.id)) : lista.filter((p) => !operadorDe(p));
-    const equipe = ops.filter((o) => o.papel === "operador");
+    const equipe = ops.filter((o) => o.papel === "operador" && !fora.has(o.id));
     if (!alvo.length || !equipe.length) {
-      toast.info(equipe.length ? "Nada para dividir: selecione pedidos ou deixe algum sem operador." : "Cadastre operadores primeiro.");
+      toast.info(
+        equipe.length
+          ? "Nada para dividir: selecione pedidos ou deixe algum sem operador."
+          : "Marque ao lado quais operadores participam da divisão.",
+      );
       return;
     }
     const soma = new Map(equipe.map((o) => [o.id, 0]));
@@ -251,15 +257,36 @@ export default function Distribuicao() {
           </div>
 
           <Cartao className="self-start">
-            <h2 className="border-b border-borda px-5 py-4 font-semibold">Carga por operador</h2>
+            <div className="border-b border-borda px-5 py-4">
+              <h2 className="font-semibold">Carga por operador</h2>
+              <p className="text-xs text-suave">Marque quem participa do “Dividir automaticamente”.</p>
+            </div>
             <ul className="divide-y divide-borda">
               {ops.map((o) => {
                 const c = carga.get(o.id);
                 const max = Math.max(1, ...[...carga.values()].map((x) => x.un));
                 return (
-                  <li key={o.id} className="px-5 py-3">
+                  <li key={o.id} className={cx("px-5 py-3", fora.has(o.id) && "opacity-55")}>
                     <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="truncate font-medium">{o.nome}</span>
+                      <label className="flex min-w-0 cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="size-4 shrink-0 accent-azul"
+                          checked={o.papel === "operador" && !fora.has(o.id)}
+                          disabled={o.papel !== "operador"}
+                          onChange={() =>
+                            setFora((f) => {
+                              const n = new Set(f);
+                              if (n.has(o.id)) n.delete(o.id);
+                              else n.add(o.id);
+                              return n;
+                            })
+                          }
+                          aria-label={`${o.nome} participa da divisão automática`}
+                        />
+                        <span className="truncate font-medium">{o.nome}</span>
+                        {o.papel === "supervisor" && <span className="shrink-0 text-xs text-suave">(supervisor)</span>}
+                      </label>
                       <span className="tabular shrink-0 text-suave">
                         {c ? `${c.pedidos} ped. · ${fmtNum(c.un)} un.` : "—"}
                       </span>

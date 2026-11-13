@@ -198,6 +198,68 @@ test("remessa com bips não pode ser excluída; concluir funciona", async () => 
   assert.equal(data.length, 0, "remessa concluída sai da separação");
 });
 
+test("conferência física: rebipar, confrontar e finalizar", async () => {
+  const { data: ped } = await sup.cliente.from("v_pedidos").select("id,nome").eq("remessa_id", remessaId).eq("nome", "PED-1").single();
+  const { data: itens } = await sup.cliente.from("itens_pedido").select("gtin,qtd_separada").eq("pedido_id", ped.id);
+
+  const a = await ops[0].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  assert.ifError(a.error);
+  const b = await ops[1].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  assert.equal(b.data, a.data, "a mesma conferência aberta é retomada por qualquer um");
+  const conf = a.data;
+
+  // confere tudo certo, menos 1 unidade do primeiro item; e bipa um GTIN de fora
+  for (const [n, it] of itens.entries()) {
+    const q = n === 0 ? it.qtd_separada - 1 : it.qtd_separada;
+    if (q > 0) assert.ifError((await ops[1].cliente.rpc("bipar_conferencia", { p_conferencia: conf, p_gtin: it.gtin, p_qtd: q })).error);
+  }
+  const fora = await ops[1].cliente.rpc("bipar_conferencia", { p_conferencia: conf, p_gtin: "7899999999999" });
+  assert.equal(fora.data[0].situacao, "fora_do_pedido");
+
+  const negativo = await ops[1].cliente.rpc("bipar_conferencia", { p_conferencia: conf, p_gtin: "7899999999999", p_qtd: -2 });
+  assert.match(negativo.error?.message ?? "", /mais do que foi conferido/);
+
+  const { data: resumo } = await ops[1].cliente.rpc("resumo_conferencia", { p_conferencia: conf });
+  const sit = Object.fromEntries(["ok", "falta", "sobra", "fora_do_pedido"].map((k) => [k, resumo.filter((r) => r.situacao === k).length]));
+  assert.equal(sit.falta, itens[0].qtd_separada > 0 ? 1 : 0);
+  assert.equal(sit.fora_do_pedido, 1);
+  assert.equal(sit.sobra, 0);
+  assert.equal(resumo[0].situacao, "fora_do_pedido", "divergências vêm primeiro");
+
+  const { data: loja } = await sup.cliente.from("v_conferencia_lojas").select("*").eq("pedido_id", ped.id).single();
+  assert.equal(loja.status, "em_andamento");
+  assert.equal(loja.divergencias, sit.falta + 1);
+
+  assert.ifError((await ops[1].cliente.rpc("finalizar_conferencia", { p_conferencia: conf })).error);
+  const depois = await ops[1].cliente.rpc("bipar_conferencia", { p_conferencia: conf, p_gtin: itens[0].gtin });
+  assert.match(depois.error?.message ?? "", /finalizada/);
+
+  const nova = await ops[0].cliente.rpc("iniciar_conferencia", { p_pedido: ped.id });
+  assert.notEqual(nova.data, conf, "depois de finalizar, conferir de novo abre uma recontagem");
+  assert.ifError((await ops[0].cliente.rpc("finalizar_conferencia", { p_conferencia: nova.data })).error);
+
+  const anon = createClient(URL, ANON, { auth: { persistSession: false } });
+  assert.ok((await anon.rpc("iniciar_conferencia", { p_pedido: ped.id })).error);
+});
+
+test("estatísticas da separação batem com os bips", async () => {
+  const { data, error } = await sup.cliente.rpc("estatisticas_separacao", { p_remessa: remessaId });
+  assert.ifError(error);
+  const { data: bips } = await sup.cliente.from("bips").select("qtd,tipo,operador_id").eq("remessa_id", remessaId);
+  const entrada = bips.filter((b) => b.tipo === "entrada").reduce((s, b) => s + b.qtd, 0);
+  assert.equal(data.resumo.bips, bips.length);
+  assert.equal(data.resumo.unidades, entrada);
+  assert.equal(data.operadores.length, new Set(bips.map((b) => b.operador_id)).size);
+  assert.equal(data.operadores.reduce((s, o) => s + o.unidades, 0), entrada);
+  assert.ok(data.horas.length >= 1);
+  assert.ok(data.lojas.length >= 1);
+  assert.equal(data.conferencia.finalizadas, 2);
+
+  const vazio = await sup.cliente.rpc("estatisticas_separacao", { p_remessa: remessaId, p_inicio: "2000-01-01", p_fim: "2000-01-02" });
+  assert.equal(vazio.data.resumo.bips, 0);
+  assert.deepEqual(vazio.data.operadores, []);
+});
+
 test("usuário desativado perde acesso", async () => {
   await admin.from("perfis").update({ ativo: false }).eq("id", ops[2].id);
   const { data } = await ops[2].cliente.from("remessas").select("id");

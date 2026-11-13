@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import {
+  ChartColumn,
   ChevronLeft,
   ClipboardCheck,
   History,
@@ -24,6 +25,7 @@ const MENU = [
   { para: "/distribuicao", texto: "Distribuição", icone: Waypoints },
   { para: "/conferencia", texto: "Conferência", icone: ClipboardCheck },
   { para: "/bips", texto: "Log de bips", icone: History },
+  { para: "/estatisticas", texto: "Estatísticas", icone: ChartColumn },
   { para: "/usuarios", texto: "Usuários", icone: Users },
   { para: "/lojas", texto: "Lojas", icone: Store },
 ];

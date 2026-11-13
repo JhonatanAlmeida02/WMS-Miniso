@@ -99,3 +99,36 @@ export interface Bip {
   operador_nome: string | null;
   produto: string;
 }
+
+export type StatusConferencia = "em_andamento" | "finalizada";
+export type SituacaoConferencia = "ok" | "falta" | "sobra" | "fora_do_pedido";
+
+/** Situação da conferência física de uma loja (v_conferencia_lojas). */
+export interface ConferenciaLoja {
+  pedido_id: number;
+  remessa_id: number;
+  pedido_nome: string;
+  loja_nome: string;
+  loja_numero: number | null;
+  qtd_pedido: number;
+  qtd_separada: number;
+  conferencia_id: number | null;
+  status: StatusConferencia | null;
+  iniciada_em: string | null;
+  finalizada_em: string | null;
+  iniciada_por_nome: string | null;
+  finalizada_por_nome: string | null;
+  qtd_conferida: number;
+  bips: number;
+  divergencias: number | null;
+}
+
+/** Uma linha do confronto pedido x separado x conferido. */
+export interface LinhaConfronto {
+  gtin: string;
+  produto: string;
+  qtd_pedido: number;
+  qtd_separada: number;
+  qtd_conferida: number;
+  situacao: SituacaoConferencia;
+}

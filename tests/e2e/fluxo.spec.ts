@@ -183,6 +183,34 @@ test("fluxo completo do WMS", async ({ page, browser }) => {
   await expect(page.getByText("Pedidos completos")).toBeVisible();
   await foto(page, "10-remessa-detalhe");
 
+  // Estatísticas
+  await page.getByRole("link", { name: "Estatísticas" }).click();
+  await expect(page.getByRole("heading", { name: "Produtividade por operador" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: new RegExp(OPS[0].nome) })).toBeVisible();
+  await foto(page, "12-estatisticas");
+
+  // Conferência física: o operador rebipa a caixa de uma loja
+  await cel.goto("/conferir");
+  await cel.getByRole("button", { name: new RegExp(lojaEsperada.loja_nome) }).click();
+  await expect(cel.getByText("Bipe os produtos da caixa")).toBeVisible();
+  await cel.getByLabel("Bipe o produto para conferir").fill(gtin);
+  await cel.keyboard.press("Enter");
+  await expect(cel.getByText(/Conferindo|Produto completo/)).toBeVisible();
+  await cel.getByLabel("Bipe o produto para conferir").fill("7890000000999");
+  await cel.keyboard.press("Enter");
+  await expect(cel.getByText("Este produto não é desta loja")).toBeVisible();
+  await foto(cel, "13-conferir");
+  await cel.getByRole("button", { name: "Finalizar", exact: true }).click();
+  await expect(cel.getByRole("dialog").getByText("De outra loja")).toBeVisible();
+  await cel.getByRole("button", { name: "Finalizar conferência" }).click();
+  await expect(cel.getByText("Resultado da conferência")).toBeVisible();
+
+  // Supervisor vê o resultado na aba Conferência física
+  await page.getByRole("link", { name: "Conferência" }).click();
+  await page.getByRole("tab", { name: "Conferência física" }).click();
+  await expect(page.getByText(/divergência/).first()).toBeVisible();
+  await foto(page, "14-conferencia-fisica");
+
   // Celular do supervisor (menu)
   const celSup = await browser.newContext({ ...devices["Pixel 7"], baseURL: "http://localhost:5180" });
   const cs = await celSup.newPage();

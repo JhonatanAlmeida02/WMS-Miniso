@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { ArrowLeft, Check, History, ListChecks, LoaderCircle, LogOut, Minus, Plus, ScanBarcode, Undo2, X, Zap } from "lucide-react";
+import { ArrowLeft, Check, ClipboardCheck, History, ListChecks, LoaderCircle, LogOut, Minus, Plus, ScanBarcode, Undo2, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { mensagemErro, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
@@ -9,6 +9,8 @@ import { fmtNum, fmtPct, nomeLoja } from "../lib/formato";
 import { somAviso, somErro, somOk, vibrar } from "../lib/som";
 import type { Bip, ItemDoGtin, PedidoResumo, TipoBip } from "../lib/tipos";
 import { Logo } from "../components/Logo";
+import { useLeitor } from "../lib/useLeitor";
+import { SeloLoja } from "../components/SeloLoja";
 import { Barra, Carregando, Modal, Vazio, cx } from "../components/ui";
 
 const CHAVE_MODO_RAPIDO = "wms.modoRapido";
@@ -22,38 +24,6 @@ function lerModoRapido() {
   }
 }
 
-/**
- * Reconhece a leitura de um leitor de código de barras: ele "digita" o código
- * inteiro em poucos milissegundos. Assim a busca sai sozinha, mesmo que o
- * leitor não mande Enter; quem digita à mão confirma com Enter.
- */
-function useLeitor(aoLer: (codigo: string) => void) {
-  const inicio = useRef(0);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const aoLerRef = useRef(aoLer);
-  aoLerRef.current = aoLer;
-
-  useEffect(() => () => clearTimeout(timer.current), []);
-
-  return {
-    /** Chame no onChange com o valor novo. */
-    digitou(valor: string, anterior: string) {
-      const agora = performance.now();
-      if (!anterior || valor.length < anterior.length) inicio.current = agora;
-      clearTimeout(timer.current);
-      const limpo = valor.replace(/\s/g, "");
-      if (limpo.length >= 8 && /^[0-9A-Za-z-]+$/.test(limpo)) {
-        const porTecla = (agora - inicio.current) / Math.max(1, limpo.length - 1);
-        if (porTecla < 35) timer.current = setTimeout(() => aoLerRef.current(limpo), 90);
-      }
-    },
-    /** Chame no Enter, para não buscar duas vezes. */
-    cancelar() {
-      clearTimeout(timer.current);
-    },
-  };
-}
-
 interface Ultimo {
   itemId: number;
   pedidoId: number;
@@ -64,24 +34,6 @@ interface Ultimo {
   tipo: TipoBip;
   separado: number;
   pedido: number;
-}
-
-/** Número da loja em destaque (ou as iniciais, se a loja não tiver número). */
-function SeloLoja({ numero, nome, className }: { numero: number | null; nome: string; className?: string }) {
-  const texto =
-    numero != null
-      ? String(numero).padStart(2, "0")
-      : nome
-          .replace(/^loja\s+/i, "")
-          .split(/\s+/)
-          .slice(0, 2)
-          .map((p) => p[0]?.toUpperCase())
-          .join("");
-  return (
-    <span className={cx("tabular grid shrink-0 place-items-center rounded-[28%] bg-ciano font-semibold text-navy", className)} aria-hidden>
-      {texto}
-    </span>
-  );
 }
 
 /** Caixinha de número (Pedido / Separado / Falta) sobre fundo escuro. */
@@ -344,6 +296,14 @@ export default function Separacao() {
               {fmtNum(totalSeparado)} de {fmtNum(totalPedido)} un.
             </p>
           )}
+          <Link
+            to="/conferir"
+            className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-white/10 sm:px-3"
+            title="Conferir (bipar de novo as caixas das lojas)"
+          >
+            <ClipboardCheck className="size-5" aria-hidden />
+            <span className="hidden lg:inline">Conferir</span>
+          </Link>
           <button
             type="button"
             onClick={() => setVerPedidos(true)}

@@ -21,10 +21,13 @@ Power Automate nem SharePoint.
 - **Log de bips:** filtros por GTIN, tipo, loja e operador, com exportação CSV.
 - **Usuários:** cria, edita, redefine senha, desativa e reativa.
 - **Lojas:** número de cada loja, que define a ordem da separação.
+- **Conferência física:** em cada loja, bipa-se de novo o que está na caixa. A tela avisa na hora quando sobra ou quando o produto não é daquela loja, e no fim mostra o confronto **conferido × separado × pedido**. O supervisor acompanha loja por loja e exporta as divergências.
+- **Estatísticas:** tempo de separação, tempo ativo (pausas de mais de 5 min entre bips não contam), unidades por minuto, segundos por unidade, ranking por operador, unidades por hora e tempo por loja, por remessa ou por período.
 
 **Operador (celular ou coletor)**
 - Bipa o GTIN e o app mostra **em qual loja colocar**, em letras grandes, com pedido, já separado e quanto falta. Confirma com Enter.
 - **Modo rápido:** cada bip já confirma 1 unidade na próxima loja. Serve para leitor de código de barras.
+- **Conferir:** botão no topo da separação para fazer a conferência física pelo celular ou coletor.
 - **Ajuste/estorno** para corrigir erros, com sons e vibração de confirmação e de erro.
 - Lista "Meus pedidos" com o progresso de cada um.
 
