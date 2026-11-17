@@ -37,7 +37,7 @@ export default function Distribuicao() {
   }, [escolhida?.id]);
 
   const lista = pedidos.dados ?? [];
-  const ops = (operadores.dados ?? []).filter((o) => o.loja_id == null);
+  const ops = operadores.dados ?? [];
   const operadorDe = (p: PedidoResumo) => (p.id in mudancas ? mudancas[p.id] : p.operador_id);
   const pendentes = Object.entries(mudancas).filter(([id, op]) => lista.find((p) => p.id === Number(id))?.operador_id !== op);
 

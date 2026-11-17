@@ -75,6 +75,44 @@ create trigger pedidos_sem_usuario_de_loja
   before update of operador_id, conferente_id on public.pedidos
   for each row execute function public.pedidos_sem_usuario_de_loja();
 
+-- Os usuários de loja ficam fora da lista de perfis da equipe interna: as
+-- telas atuais (Painel, Distribuição, Conferência, Usuários) seguem mostrando
+-- só a equipe do CD, sem mudar uma linha delas. Cada um continua lendo o
+-- próprio perfil (login).
+drop policy "ativos leem perfis" on public.perfis;
+create policy "ativos leem perfis" on public.perfis for select to authenticated
+  using (((select public.usuario_ativo()) and loja_id is null) or id = (select auth.uid()));
+
+-- Nome de quem aparece num registro das telas novas (expediu, finalizou...).
+-- Equipe interna vê todos; a loja vê a equipe interna e os colegas da loja.
+create function public.nome_usuario(p_id uuid) returns text
+language sql stable security definer set search_path = ''
+as $$
+  select u.nome
+    from public.perfis u
+   where u.id = p_id
+     and (public.usuario_ativo()
+          or (public.loja_do_usuario() is not null
+              and (u.loja_id is null or u.loja_id = public.loja_do_usuario())));
+$$;
+
+-- Usuários das lojas, para a área "Lojas MINISO" (só supervisor)
+create function public.usuarios_das_lojas()
+returns table (id uuid, login text, nome text, cargo text, ativo boolean, loja_id bigint, ultima_atividade timestamptz, criado_em timestamptz)
+language plpgsql stable security definer set search_path = ''
+as $$
+begin
+  if not public.eh_supervisor() then
+    raise exception 'Apenas supervisores' using errcode = '42501';
+  end if;
+  return query
+    select p.id, p.login, p.nome, p.cargo, p.ativo, p.loja_id, p.ultima_atividade, p.criado_em
+      from public.perfis p
+     where p.loja_id is not null
+     order by p.ativo desc, p.nome;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- 2. Leitura da própria loja (políticas novas, somadas às atuais)
 -- O "is not null" vem primeiro: para a equipe interna a subconsulta nem roda.
@@ -726,7 +764,7 @@ select
   e.volumes,
   e.observacao,
   e.expedida_em,
-  ep.nome                              as expedida_por_nome,
+  public.nome_usuario(e.expedida_por)  as expedida_por_nome,
   p.nome                               as pedido_nome,
   r.codigo                             as remessa_codigo,
   l.nome                               as loja_nome,
@@ -738,7 +776,7 @@ select
   rc.revisao,
   rc.iniciado_em,
   rc.finalizado_em,
-  fp.nome                              as finalizado_por_nome,
+  public.nome_usuario(rc.finalizado_por) as finalizado_por_nome,
   coalesce(tb.qtd_integra, 0)::int     as qtd_integra,
   coalesce(tb.qtd_avariada, 0)::int    as qtd_avariada,
   coalesce(tb.leituras, 0)::int        as leituras,
@@ -748,9 +786,7 @@ from public.expedicoes e
 join public.pedidos p on p.id = e.pedido_id
 join public.remessas r on r.id = e.remessa_id
 join public.lojas l on l.id = e.loja_id
-left join public.perfis ep on ep.id = e.expedida_por
 left join public.recebimentos_loja rc on rc.expedicao_id = e.id
-left join public.perfis fp on fp.id = rc.finalizado_por
 left join lateral (
   select count(*) as produtos, sum(ei.qtd) as qtd_expedida
     from public.expedicao_itens ei where ei.expedicao_id = e.id
@@ -888,14 +924,13 @@ select
   l.nome               as loja_nome,
   l.numero             as loja_numero,
   rc.revisao = d.revisao as atual,
-  rp.nome              as resolvida_por_nome
+  public.nome_usuario(d.resolvida_por) as resolvida_por_nome
 from public.divergencias d
 join public.recebimentos_loja rc on rc.id = d.recebimento_id
 join public.expedicoes e on e.id = rc.expedicao_id
 join public.pedidos p on p.id = e.pedido_id
 join public.remessas r on r.id = e.remessa_id
-join public.lojas l on l.id = d.loja_id
-left join public.perfis rp on rp.id = d.resolvida_por;
+join public.lojas l on l.id = d.loja_id;
 
 revoke all on public.v_expedicoes, public.v_loja_pedidos, public.v_loja_itens, public.v_divergencias from anon;
 
@@ -903,6 +938,8 @@ revoke all on public.v_expedicoes, public.v_loja_pedidos, public.v_loja_itens, p
 -- 8. Permissões das funções novas (só usuário logado; nunca anônimo)
 -- ---------------------------------------------------------------------------
 revoke execute on function public.loja_do_usuario()                                         from anon, public;
+revoke execute on function public.nome_usuario(uuid)                                        from anon, public;
+revoke execute on function public.usuarios_das_lojas()                                      from anon, public;
 revoke execute on function public.pedidos_sem_usuario_de_loja()                             from anon, public, authenticated;
 revoke execute on function public.perfis_loja_nao_vira_interno()                            from anon, public, authenticated;
 revoke execute on function public.itens_nao_abaixo_do_expedido()                            from anon, public, authenticated;
@@ -916,6 +953,8 @@ revoke execute on function public.reabrir_recebimento_loja(bigint, text)        
 revoke execute on function public.atualizar_divergencia(bigint, public.status_divergencia, text) from anon, public;
 
 grant execute on function public.loja_do_usuario()                                          to authenticated;
+grant execute on function public.nome_usuario(uuid)                                         to authenticated;
+grant execute on function public.usuarios_das_lojas()                                       to authenticated;
 grant execute on function public.resumo_recebimento(bigint)                                 to authenticated;
 grant execute on function public.expedir_pedido(bigint, integer, uuid, text)                to authenticated;
 grant execute on function public.iniciar_recebimento_loja(bigint)                           to authenticated;

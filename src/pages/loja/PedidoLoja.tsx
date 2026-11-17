@@ -271,5 +271,5 @@ export default function PedidoLoja() {
 
 export function PedidoLojaSupervisor() {
   const { lojaId, id } = useParams();
-  return <DetalhePedidoLoja pedidoId={Number(id)} voltar={`/expedicao/loja/${lojaId}`} />;
+  return <DetalhePedidoLoja pedidoId={Number(id)} voltar={`/lojas-miniso/loja/${lojaId}`} />;
 }

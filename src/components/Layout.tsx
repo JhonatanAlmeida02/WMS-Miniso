@@ -25,11 +25,12 @@ const MENU = [
   { para: "/remessas", texto: "Remessas", icone: PackagePlus },
   { para: "/distribuicao", texto: "Distribuição", icone: Waypoints },
   { para: "/conferencia", texto: "Conferência", icone: ClipboardCheck },
-  { para: "/expedicao", texto: "Expedição", icone: Truck },
   { para: "/bips", texto: "Log de bips", icone: History },
   { para: "/estatisticas", texto: "Estatísticas", icone: ChartColumn },
   { para: "/usuarios", texto: "Usuários", icone: Users },
   { para: "/lojas", texto: "Lojas", icone: Store },
+  // Módulo das lojas: área separada, no fim do menu
+  { para: "/lojas-miniso", texto: "Lojas MINISO", icone: Truck },
 ];
 
 /** Menu do administrador da loja (operador com loja vinculada). */

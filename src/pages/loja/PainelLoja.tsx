@@ -353,5 +353,5 @@ export default function PainelLoja() {
 export function PainelLojaSupervisor() {
   const { lojaId } = useParams();
   const id = Number(lojaId);
-  return <PainelDaLoja lojaId={id} rotaPedido={(p) => `/expedicao/loja/${id}/pedidos/${p}`} voltar="/expedicao?aba=lojas" />;
+  return <PainelDaLoja lojaId={id} rotaPedido={(p) => `/lojas-miniso/loja/${id}/pedidos/${p}`} voltar="/lojas-miniso" />;
 }

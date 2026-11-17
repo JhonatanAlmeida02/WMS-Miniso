@@ -3,9 +3,9 @@
 Implementação da especificação em [`README_MINISO_CLAUDE_CODE.md`](README_MINISO_CLAUDE_CODE.md).
 Está na mesma aplicação e no mesmo banco do PRODIGY WMS e não muda nada para quem já usa.
 
-| Painel da loja | Conferência no coletor | Expedição (PRODIGY) |
+| Painel da loja | Conferência no coletor | Lojas MINISO (PRODIGY) |
 |---|---|---|
-| ![Painel da loja](modulo-lojas/painel-loja.png) | ![Conferência](modulo-lojas/conferencia-coletor.png) | ![Expedição](modulo-lojas/expedicao.png) |
+| ![Painel da loja](modulo-lojas/painel-loja.png) | ![Conferência](modulo-lojas/conferencia-coletor.png) | ![Lojas MINISO](modulo-lojas/lojas-miniso.png) |
 
 ## Decisões
 
@@ -31,47 +31,67 @@ Está na mesma aplicação e no mesmo banco do PRODIGY WMS e não muda nada para
   revisão; a contagem anterior e as divergências dela continuam no histórico. A resolução de uma
   divergência registra a solução sem alterar as quantidades.
 
-## O que mudou nas telas existentes (mínimo)
+## O que muda no que já está em produção
+
+A separação na PRODIGY (importar, distribuir, separar, conferir no CD, painel, log, estatísticas e
+usuários da equipe) **continua igual**. Os arquivos dessas telas não foram alterados. No front, só
+mudaram:
 
 | Arquivo | Mudança |
 |---|---|
-| `src/components/Layout.tsx` | Item de menu **Expedição**; `LayoutLoja` (mesmo layout, menu da loja); o `Protegido` manda o usuário de loja para `/loja` |
-| `src/main.tsx` | Rotas novas (`/expedicao…`, `/loja…`) |
-| `src/pages/Usuarios.tsx` + `supabase/functions/usuarios` | Campo **Onde trabalha** (Equipe PRODIGY ou Administrador da loja X) |
-| `Painel.tsx`, `Distribuicao.tsx`, `ConferenciaFisica.tsx` | A equipe do CD exclui os usuários de loja |
-| `src/lib/tipos.ts`, `useConsulta.ts` | Tipos novos e tabelas de tempo real |
+| `src/components/Layout.tsx` | Item **Lojas MINISO** no fim do menu; `LayoutLoja` (mesmo visual, menu da loja); o `Protegido` manda o usuário de loja para `/loja` |
+| `src/main.tsx` | Rotas novas (`/lojas-miniso…` e `/loja…`) |
+| `src/lib/tipos.ts`, `src/lib/useConsulta.ts` | Tipos novos e tabelas novas no tempo real (só acréscimos) |
+
+No banco, tudo é aditivo, com dois ajustes em objetos que já existem. Os dois foram testados e,
+para a equipe atual, o resultado é o mesmo de antes:
+
+- `usuario_ativo()` passa a valer só para quem **não** é de loja;
+- a política de leitura de `perfis` esconde os usuários de loja da equipe interna. Assim, as telas
+  Painel, Distribuição, Conferência e Usuários continuam mostrando só a equipe do CD, sem mudar uma
+  linha delas.
+
+A função `usuarios` (equipe do CD) não muda. Os usuários das lojas usam uma função nova,
+`usuarios-loja`, que só mexe em usuário de loja.
+
+## Fluxo
+
+```
+PRODIGY (como hoje)      importar → distribuir → separar → conferir no CD
+PRODIGY (Lojas MINISO)   Expedição: registra a saída da loja (volumes); o que sai fica congelado
+LOJA (login próprio)     painel da loja → Entregas → bipa o que chegou → Finalizar
+PRODIGY (Lojas MINISO)   Recebimentos e Divergências: acompanha, reabre (com motivo) e resolve
+```
+
+A área **Lojas MINISO** tem as abas Visão geral (uma por loja), Expedição, Recebimentos,
+Divergências e Usuários e acesso.
 
 A conferência da loja (`src/pages/loja/ConferirRecebimento.tsx`) usa o mesmo layout, campo de
 leitura, multiplicador, sons, vibração, cartão do último bip e lista de leituras da conferência do CD.
-A única adição é o botão **Avaria**. O `Conferir.tsx` original **não foi alterado**, para não mexer no
-que está em produção. Em uma etapa posterior, as duas telas podem passar a usar um componente único.
+A única adição é o botão **Avaria**. O `Conferir.tsx` original **não foi alterado**.
 
 ## Ativação (homologação primeiro)
 
-1. **Aplique a migração antes de publicar o front.** As telas novas consultam tabelas e visões que
-   só existem depois dela:
-   `supabase/migrations/20261117120000_modulo_lojas.sql` (`npx supabase db push` ou SQL Editor).
-   A migração é aditiva e não apaga nem reescreve dados. Nenhuma loja fica habilitada e nenhum
-   usuário fica vinculado.
-2. Publique a função de usuários atualizada: `npx supabase functions deploy usuarios`.
+1. **Aplique a migração antes de publicar o front:**
+   `supabase/migrations/20261117120000_modulo_lojas.sql`. Ela é aditiva; nenhuma loja fica
+   habilitada e nenhum usuário fica vinculado.
+2. Publique a função nova: `npx supabase functions deploy usuarios-loja`.
 3. Publique o front (merge na branch usada pelo Render).
-4. Em **Usuários**, crie o administrador de cada loja: Perfil **Operador** e, em Onde trabalha,
-   **Administrador da loja XX**. Cada pessoa tem o próprio login; não use conta compartilhada.
-5. Em **Expedição → Acesso das lojas**, habilite as lojas piloto (2 lojas) e depois as demais.
-6. Rotina: separação e conferência do CD como hoje → **Expedição → Expedir** (informe os volumes) →
-   a loja confere em **Entregas** → o supervisor acompanha **Recebimentos** e **Divergências**.
+4. Em **Lojas MINISO → Usuários e acesso**, crie o administrador de cada loja (cada pessoa com o
+   próprio login) e habilite as lojas piloto (2) e depois as demais.
+5. Rotina: separação e conferência do CD como hoje → **Lojas MINISO → Expedição** → a loja confere
+   em **Entregas** → a PRODIGY acompanha **Recebimentos** e **Divergências**.
 
 Pedidos antigos, sem expedição registrada, não aparecem como entregas para conferir. O separado
 nunca vira expedido de forma automática.
 
 ## Desligar o módulo (rollback funcional)
 
-- **Uma loja:** desmarque a loja em **Expedição → Acesso das lojas**. O acesso é cortado na hora e
-  nada é apagado.
-- **Uma pessoa:** desative o usuário em **Usuários**. O banco não deixa tirar a loja de um usuário
+- **Uma loja:** desmarque o acesso dela em **Usuários e acesso**. O corte é imediato e nada é
+  apagado.
+- **Uma pessoa:** desative a pessoa na mesma aba. O banco não deixa tirar a loja de um usuário
   (ele viraria equipe interna).
-- **Tudo:** desligue todas as lojas. Não é preciso desfazer a migração, e não se deve fazer isso: o
-  histórico de expedição e recebimento fica preservado.
+- **Tudo:** desligue todas as lojas. Não desfaça a migração; o histórico fica preservado.
 
 ## Testes
 
@@ -91,7 +111,7 @@ projeto Supabase. O arquivo `tests/sql/00_stub_supabase.sql` simula o mínimo do
 - repetição de requisição (retry), estorno, finalização repetida, reabertura com motivo e
   histórico;
 - usuário desativado e loja desligada perdendo o acesso com a sessão aberta;
-- regressão: equipe interna e conferência do CD funcionando como antes;
+- regressão: equipe interna e conferência do CD funcionando como antes, e as telas atuais sem os usuários de loja;
 - concorrência: 5 aparelhos bipando com retry (sem perda e sem duplicação) e bipagem durante a
   finalização (nada é gravado depois do fechamento).
 

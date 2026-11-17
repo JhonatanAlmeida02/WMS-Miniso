@@ -21,7 +21,7 @@ const Separacao = lazy(() => import("./pages/Separacao"));
 const Conferir = lazy(() => import("./pages/Conferir"));
 const InicioOperador = lazy(() => import("./pages/InicioOperador"));
 const Estatisticas = lazy(() => import("./pages/Estatisticas"));
-const Expedicao = lazy(() => import("./pages/Expedicao"));
+const LojasMiniso = lazy(() => import("./pages/LojasMiniso"));
 const PainelLoja = lazy(() => import("./pages/loja/PainelLoja"));
 const PainelLojaSupervisor = lazy(() => import("./pages/loja/PainelLoja").then((m) => ({ default: m.PainelLojaSupervisor })));
 const PedidoLoja = lazy(() => import("./pages/loja/PedidoLoja"));
@@ -95,9 +95,10 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/remessas/:id" element={<RemessaDetalhe />} />
               <Route path="/distribuicao" element={<Distribuicao />} />
               <Route path="/conferencia" element={<Conferencia />} />
-              <Route path="/expedicao" element={<Expedicao />} />
-              <Route path="/expedicao/loja/:lojaId" element={<PainelLojaSupervisor />} />
-              <Route path="/expedicao/loja/:lojaId/pedidos/:id" element={<PedidoLojaSupervisor />} />
+              {/* Módulo das lojas (área separada da separação do CD) */}
+              <Route path="/lojas-miniso" element={<LojasMiniso />} />
+              <Route path="/lojas-miniso/loja/:lojaId" element={<PainelLojaSupervisor />} />
+              <Route path="/lojas-miniso/loja/:lojaId/pedidos/:id" element={<PedidoLojaSupervisor />} />
               <Route path="/bips" element={<LogBips />} />
               <Route path="/estatisticas" element={<Estatisticas />} />
               <Route path="/usuarios" element={<Usuarios />} />

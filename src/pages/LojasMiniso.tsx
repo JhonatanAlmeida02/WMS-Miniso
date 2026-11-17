@@ -1,32 +1,37 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowRight, Download, RotateCcw, Store, Truck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Download, KeyRound, Pencil, RotateCcw, Store, Truck, UserPlus } from "lucide-react";
 import { mensagemErro, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { useRemessaEscolhida } from "../lib/useRemessaEscolhida";
 import { novaOperacao, rpcSegura } from "../lib/operacao";
 import { baixarCsv } from "../lib/buscarTudo";
-import { fmtDataHora, fmtNum, nomeLoja } from "../lib/formato";
-import type { Divergencia, Expedicao as TExpedicao, Loja, PedidoLoja, Perfil, StatusDivergencia } from "../lib/tipos";
+import { fmtDataHora, fmtNum, nomeLoja, situacaoOnline, tempoRelativo } from "../lib/formato";
+import type { Divergencia, Expedicao as TExpedicao, Loja, PedidoLoja, StatusDivergencia } from "../lib/tipos";
+import { chamarUsuariosLoja, type UsuarioLoja } from "../lib/usuariosLoja";
 import { SeloLoja } from "../components/SeloLoja";
 import { AvisoErro, Barra, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx } from "../components/ui";
 import { ROTULO_STATUS_DIVERGENCIA, ROTULO_TIPO, SeloRecebimento } from "../components/loja/comum";
 import { ModalConfronto } from "./loja/PedidoLoja";
 
-type Aba = "expedir" | "recebimentos" | "divergencias" | "lojas";
+type Aba = "visao" | "expedir" | "recebimentos" | "divergencias" | "usuarios";
 const ABAS: [Aba, string][] = [
-  ["expedir", "Expedir"],
-  ["recebimentos", "Recebimentos nas lojas"],
+  ["visao", "Visão geral"],
+  ["expedir", "Expedição"],
+  ["recebimentos", "Recebimentos"],
   ["divergencias", "Divergências"],
-  ["lojas", "Acesso das lojas"],
+  ["usuarios", "Usuários e acesso"],
 ];
 
-/** Expedição (saída do CD) e acompanhamento do recebimento nas lojas. */
-export default function Expedicao() {
+/**
+ * Área "Lojas MINISO": tudo do módulo das lojas num lugar só, separado da
+ * separação do CD (que continua nas telas de sempre, sem mudança).
+ */
+export default function LojasMiniso() {
   const [params, setParams] = useSearchParams();
   // A aba fica no estado: o seletor de remessa reescreve a URL só com ?remessa=
-  const [aba, setAba] = useState<Aba>(() => (ABAS.find(([k]) => k === params.get("aba"))?.[0] ?? "expedir") as Aba);
+  const [aba, setAba] = useState<Aba>(() => (ABAS.find(([k]) => k === params.get("aba"))?.[0] ?? "visao") as Aba);
   const { lista: remessas, escolhida, carregando } = useRemessaEscolhida(true);
   useEffect(() => {
     if (params.get("aba") !== aba && params.get("remessa")) {
@@ -48,8 +53,8 @@ export default function Expedicao() {
   return (
     <>
       <Titulo
-        titulo="Expedição"
-        descricao="Registre a saída do CD por loja e acompanhe o recebimento e as divergências de cada loja."
+        titulo="Lojas MINISO"
+        descricao="Acompanhe as lojas, registre a saída do CD e trate o que cada loja recebeu. A separação continua nas telas de sempre."
         acoes={
           precisaRemessa && remessas.length > 0 ? (
             <Selecao
@@ -106,8 +111,10 @@ export default function Expedicao() {
         <AbaRecebimentos remessaId={escolhida.id} codigo={escolhida.codigo} />
       ) : aba === "divergencias" ? (
         <AbaDivergencias />
+      ) : aba === "usuarios" ? (
+        <AbaUsuarios />
       ) : (
-        <AbaLojas />
+        <AbaVisao />
       )}
     </>
   );
@@ -197,7 +204,7 @@ function AbaExpedir({ remessaId }: { remessaId: number }) {
                       )}
                     </td>
                     <td className="px-5 py-2.5 text-right whitespace-nowrap">
-                      <Link to={`/expedicao/loja/${p.loja_id}/pedidos/${p.pedido_id}`} className="mr-2 text-sm font-medium text-azul-escuro hover:underline">
+                      <Link to={`/lojas-miniso/loja/${p.loja_id}/pedidos/${p.pedido_id}`} className="mr-2 text-sm font-medium text-azul-escuro hover:underline">
                         Detalhes
                       </Link>
                       <Botao tamanho="sm" icone={<Truck className="size-4" />} disabled={disponivel(p) === 0} onClick={() => setAberto(p)}>
@@ -629,13 +636,145 @@ function AbaDivergencias() {
 }
 
 // ---------------------------------------------------------------------------
-function AbaLojas() {
-  const lojas = useConsulta<Loja[]>(() => supabase.from("lojas").select("*").order("numero", { ascending: true, nullsFirst: false }).order("nome"), []);
-  const usuarios = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").not("loja_id", "is", null), []);
-  const [mudando, setMudando] = useState<number | null>(null);
+interface ResumoLoja {
+  loja: Loja;
+  pedidos: number;
+  pedido: number;
+  separado: number;
+  expedido: number;
+  recebido: number;
+  aguardando: number;
+  conferindo: number;
+  divergencia: number;
+}
 
-  async function alternar(l: Loja) {
-    setMudando(l.id);
+/** Um cartão por loja: separação das remessas em andamento e situação das entregas. */
+function AbaVisao() {
+  const lojas = useConsulta<Loja[]>(() => supabase.from("lojas").select("*").order("numero", { ascending: true, nullsFirst: false }).order("nome"), []);
+  const pedidos = useConsulta<PedidoLoja[]>(
+    () => supabase.from("v_loja_pedidos").select("*").neq("remessa_status", "concluida").limit(5000),
+    [],
+    { tabelas: ["pedidos", "remessas", "expedicoes", "recebimentos_loja"] },
+  );
+  const resumo = useMemo(() => {
+    const m = new Map<number, ResumoLoja>();
+    for (const l of lojas.dados ?? [])
+      m.set(l.id, { loja: l, pedidos: 0, pedido: 0, separado: 0, expedido: 0, recebido: 0, aguardando: 0, conferindo: 0, divergencia: 0 });
+    for (const p of pedidos.dados ?? []) {
+      const r = m.get(p.loja_id);
+      if (!r) continue;
+      r.pedidos += 1;
+      r.pedido += p.qtd_pedido;
+      r.separado += p.qtd_separada;
+      r.expedido += p.qtd_expedida;
+      r.recebido += p.qtd_recebida;
+      r.aguardando += p.entregas_aguardando;
+      r.conferindo += p.entregas_em_conferencia;
+      r.divergencia += p.entregas_com_divergencia;
+    }
+    return [...m.values()];
+  }, [lojas.dados, pedidos.dados]);
+
+  if ((lojas.carregando && !lojas.dados) || (pedidos.carregando && !pedidos.dados)) return <Carregando />;
+  const comPedido = resumo.filter((r) => r.pedidos > 0);
+  const tot = (k: keyof Omit<ResumoLoja, "loja">) => resumo.reduce((s, r) => s + r[k], 0);
+
+  return (
+    <>
+      {pedidos.erro && <AvisoErro>{pedidos.erro}</AvisoErro>}
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Cartao className="p-4">
+          <p className="text-xs text-suave">Lojas com pedido em andamento</p>
+          <p className="tabular text-2xl font-semibold">
+            {comPedido.length}
+            <span className="text-base font-normal text-suave">/{resumo.length}</span>
+          </p>
+        </Cartao>
+        <Cartao className="p-4">
+          <p className="text-xs text-suave">Separado</p>
+          <p className="tabular text-2xl font-semibold">
+            {fmtNum(tot("separado"))}
+            <span className="text-base font-normal text-suave"> de {fmtNum(tot("pedido"))} un.</span>
+          </p>
+        </Cartao>
+        <Cartao className="p-4">
+          <p className="text-xs text-suave">Entregas a conferir nas lojas</p>
+          <p className="tabular text-2xl font-semibold">{fmtNum(tot("aguardando") + tot("conferindo"))}</p>
+        </Cartao>
+        <Cartao className="p-4">
+          <p className="text-xs text-suave">Entregas com divergência</p>
+          <p className={cx("tabular text-2xl font-semibold", tot("divergencia") > 0 && "text-erro")}>{fmtNum(tot("divergencia"))}</p>
+        </Cartao>
+      </div>
+
+      {resumo.length === 0 ? (
+        <Cartao>
+          <Vazio icone={<Store className="size-8" />} titulo="Nenhuma loja cadastrada" />
+        </Cartao>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {resumo.map((r) => (
+            <li key={r.loja.id}>
+              <Link
+                to={`/lojas-miniso/loja/${r.loja.id}`}
+                className={cx(
+                  "group block rounded-2xl border bg-white p-4 transition-colors hover:border-azul",
+                  r.divergencia > 0 ? "border-erro/40" : "border-borda",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <SeloLoja numero={r.loja.numero} nome={r.loja.nome} className="size-11 text-lg" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{r.loja.nome}</p>
+                    <p className="text-xs text-suave">
+                      {r.pedidos ? `${r.pedidos} ${r.pedidos === 1 ? "pedido" : "pedidos"} em andamento` : "sem pedido em andamento"}
+                      {" · "}
+                      {r.loja.modulo_loja ? <span className="text-ciano-escuro">acesso habilitado</span> : "acesso desligado"}
+                    </p>
+                  </div>
+                  <ArrowRight className="size-4 text-suave transition-transform group-hover:translate-x-0.5" />
+                </div>
+                {r.pedidos > 0 && (
+                  <>
+                    <div className="mt-3 flex items-baseline justify-between text-sm">
+                      <span className="text-suave">Separado</span>
+                      <span className="tabular font-semibold">
+                        {fmtNum(r.separado)}/{fmtNum(r.pedido)}
+                      </span>
+                    </div>
+                    <Barra parte={r.separado} total={r.pedido} className="mt-1" />
+                    <div className="tabular mt-2 flex justify-between text-xs text-suave">
+                      <span>Expedido {fmtNum(r.expedido)}</span>
+                      <span>Recebido {fmtNum(r.recebido)}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {r.aguardando > 0 && <Selo className="bg-amarelo-claro text-[#7a5200]">{r.aguardando} a conferir</Selo>}
+                      {r.conferindo > 0 && <Selo className="bg-azul-claro text-azul-escuro">{r.conferindo} conferindo</Selo>}
+                      {r.divergencia > 0 && <Selo className="bg-erro-claro text-erro">{r.divergencia} com divergência</Selo>}
+                    </div>
+                  </>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+type EdicaoUsuario = { modo: "novo"; loja?: number } | { modo: "editar"; u: UsuarioLoja } | { modo: "senha"; u: UsuarioLoja };
+
+/** Acesso de cada loja e os administradores das lojas (separados da equipe do CD). */
+function AbaUsuarios() {
+  const lojas = useConsulta<Loja[]>(() => supabase.from("lojas").select("*").order("numero", { ascending: true, nullsFirst: false }).order("nome"), []);
+  const usuarios = useConsulta<UsuarioLoja[]>(() => supabase.rpc("usuarios_das_lojas"), []);
+  const [mudando, setMudando] = useState<string | null>(null);
+  const [edicao, setEdicao] = useState<EdicaoUsuario | null>(null);
+
+  async function alternarLoja(l: Loja) {
+    setMudando(`loja-${l.id}`);
     const { error } = await supabase.from("lojas").update({ modulo_loja: !l.modulo_loja }).eq("id", l.id);
     setMudando(null);
     if (error) {
@@ -646,52 +785,214 @@ function AbaLojas() {
     lojas.recarregar();
   }
 
+  async function alternarUsuario(u: UsuarioLoja) {
+    setMudando(u.id);
+    try {
+      await chamarUsuariosLoja({ acao: "atualizar", id: u.id, ativo: !u.ativo });
+      toast.success(u.ativo ? `${u.nome} desativado` : `${u.nome} reativado`);
+      usuarios.recarregar();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setMudando(null);
+    }
+  }
+
   return (
-    <Cartao className="overflow-hidden">
-      <div className="border-b border-borda px-5 py-3">
-        <h2 className="font-semibold">Acesso das lojas</h2>
-        <p className="text-xs text-suave">
-          Com o acesso habilitado, os usuários vinculados à loja (cadastrados em Usuários) entram no painel e conferem o recebimento. Desligar corta o acesso
-          na hora, sem apagar nada.
-        </p>
-      </div>
-      {lojas.erro && <AvisoErro>{lojas.erro}</AvisoErro>}
-      {lojas.carregando && !lojas.dados ? (
-        <Carregando />
-      ) : (
-        <ul className="divide-y divide-borda">
-          {(lojas.dados ?? []).map((l) => {
-            const vinculados = (usuarios.dados ?? []).filter((u) => u.loja_id === l.id);
-            const ativos = vinculados.filter((u) => u.ativo).length;
-            return (
-              <li key={l.id} className="flex flex-wrap items-center gap-4 px-5 py-3">
-                <SeloLoja numero={l.numero} nome={l.nome} className="size-9 text-sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium">{l.nome}</p>
-                  <p className="text-xs text-suave">
-                    {vinculados.length === 0
-                      ? "Nenhum usuário da loja cadastrado"
-                      : `${ativos} ${ativos === 1 ? "usuário ativo" : "usuários ativos"}: ${vinculados.map((u) => u.nome).join(", ")}`}
-                  </p>
-                </div>
-                <Link to={`/expedicao/loja/${l.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-azul-escuro hover:underline">
-                  Ver painel <ArrowRight className="size-3.5" />
-                </Link>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="size-5 accent-[#00877b]"
-                    checked={!!l.modulo_loja}
-                    disabled={mudando === l.id}
-                    onChange={() => alternar(l)}
-                  />
-                  {l.modulo_loja ? "Habilitado" : "Desligado"}
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+    <>
+      <Cartao className="overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borda px-5 py-3">
+          <div>
+            <h2 className="font-semibold">Lojas e administradores</h2>
+            <p className="text-xs text-suave">
+              Cada pessoa da loja tem o próprio login e vê só a própria loja. Com o acesso desligado, ninguém da loja entra; nada é apagado.
+            </p>
+          </div>
+          <Botao icone={<UserPlus className="size-4" />} onClick={() => setEdicao({ modo: "novo" })}>
+            Novo usuário de loja
+          </Botao>
+        </div>
+        {lojas.erro && <AvisoErro>{lojas.erro}</AvisoErro>}
+        {usuarios.erro && <AvisoErro>{usuarios.erro}</AvisoErro>}
+        {lojas.carregando && !lojas.dados ? (
+          <Carregando />
+        ) : (
+          <ul className="divide-y divide-borda">
+            {(lojas.dados ?? []).map((l) => {
+              const daLoja = (usuarios.dados ?? []).filter((u) => u.loja_id === l.id);
+              return (
+                <li key={l.id} className="px-5 py-3">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <SeloLoja numero={l.numero} nome={l.nome} className="size-9 text-sm" />
+                    <p className="min-w-0 flex-1 font-medium">{l.nome}</p>
+                    <Botao variante="fantasma" tamanho="sm" icone={<UserPlus className="size-4" />} onClick={() => setEdicao({ modo: "novo", loja: l.id })}>
+                      Adicionar
+                    </Botao>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="size-5 accent-[#00877b]"
+                        checked={!!l.modulo_loja}
+                        disabled={mudando === `loja-${l.id}`}
+                        onChange={() => alternarLoja(l)}
+                      />
+                      {l.modulo_loja ? "Acesso habilitado" : "Acesso desligado"}
+                    </label>
+                  </div>
+                  {daLoja.length > 0 && (
+                    <ul className="mt-2 space-y-1 pl-13">
+                      {daLoja.map((u) => {
+                        const s = situacaoOnline(u.ultima_atividade);
+                        return (
+                          <li key={u.id} className={cx("flex flex-wrap items-center gap-2 rounded-xl bg-fundo px-3 py-2 text-sm", !u.ativo && "text-suave")}>
+                            <span
+                              className={cx("size-2 rounded-full", s === "online" ? "bg-ciano" : s === "inativo" ? "bg-amarelo" : "bg-navy/20")}
+                              aria-hidden
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="font-medium">{u.nome}</span>
+                              <span className="text-xs text-suave">
+                                {" "}
+                                · {u.login}
+                                {u.cargo && ` · ${u.cargo}`} · visto {tempoRelativo(u.ultima_atividade)}
+                              </span>
+                            </span>
+                            {!u.ativo && <Selo className="bg-navy/8 text-suave">Desativado</Selo>}
+                            <Botao variante="fantasma" tamanho="sm" icone={<Pencil className="size-4" />} onClick={() => setEdicao({ modo: "editar", u })}>
+                              Editar
+                            </Botao>
+                            <Botao variante="fantasma" tamanho="sm" icone={<KeyRound className="size-4" />} onClick={() => setEdicao({ modo: "senha", u })}>
+                              Senha
+                            </Botao>
+                            <Botao
+                              variante={u.ativo ? "perigo" : "secundario"}
+                              tamanho="sm"
+                              carregando={mudando === u.id}
+                              onClick={() => alternarUsuario(u)}
+                            >
+                              {u.ativo ? "Desativar" : "Reativar"}
+                            </Botao>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Cartao>
+
+      <Modal
+        aberto={!!edicao}
+        aoFechar={() => setEdicao(null)}
+        titulo={edicao?.modo === "novo" ? "Novo usuário de loja" : edicao?.modo === "senha" ? `Redefinir senha de ${edicao.u.nome}` : `Editar ${edicao?.u.nome ?? ""}`}
+      >
+        {edicao && (
+          <FormUsuarioLoja
+            key={edicao.modo + (edicao.modo === "novo" ? (edicao.loja ?? "") : edicao.u.id)}
+            edicao={edicao}
+            lojas={lojas.dados ?? []}
+            aoFechar={() => setEdicao(null)}
+            aoSalvar={() => {
+              setEdicao(null);
+              usuarios.recarregar();
+            }}
+          />
+        )}
+      </Modal>
+    </>
+  );
+}
+
+function FormUsuarioLoja({ edicao, lojas, aoSalvar, aoFechar }: { edicao: EdicaoUsuario; lojas: Loja[]; aoSalvar: () => void; aoFechar: () => void }) {
+  const u = edicao.modo !== "novo" ? edicao.u : null;
+  const [login, setLogin] = useState("");
+  const [nome, setNome] = useState(u?.nome ?? "");
+  const [cargo, setCargo] = useState(u?.cargo ?? "");
+  const [lojaId, setLojaId] = useState(String(u?.loja_id ?? (edicao.modo === "novo" ? (edicao.loja ?? "") : "")));
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault();
+    setErro(null);
+    setSalvando(true);
+    try {
+      if (edicao.modo === "novo") {
+        await chamarUsuariosLoja({ acao: "criar", login, nome, cargo, senha, loja_id: Number(lojaId) });
+        toast.success(`Usuário ${login} criado`);
+      } else if (edicao.modo === "editar") {
+        await chamarUsuariosLoja({ acao: "atualizar", id: edicao.u.id, nome, cargo, loja_id: Number(lojaId) });
+        toast.success("Usuário atualizado");
+      } else {
+        await chamarUsuariosLoja({ acao: "atualizar", id: edicao.u.id, senha });
+        toast.success(`Senha de ${edicao.u.nome} redefinida`);
+      }
+      aoSalvar();
+    } catch (err) {
+      setErro((err as Error).message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <form onSubmit={enviar} className="space-y-4">
+      {edicao.modo === "novo" && (
+        <Campo
+          rotulo="Login"
+          required
+          autoCapitalize="none"
+          autoComplete="off"
+          spellCheck={false}
+          value={login}
+          onChange={(e) => setLogin(e.target.value.toLowerCase().replace(/\s/g, ""))}
+          ajuda="Usado para entrar. Letras minúsculas, números, ponto ou hífen (ex.: loja01.maria)."
+          pattern="[a-z0-9._\-]{3,40}"
+        />
       )}
-    </Cartao>
+      {edicao.modo !== "senha" && (
+        <>
+          <Campo rotulo="Nome" required value={nome} onChange={(e) => setNome(e.target.value)} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Selecao rotulo="Loja" required value={lojaId} onChange={(e) => setLojaId(e.target.value)}>
+              <option value="" disabled>
+                Escolha a loja
+              </option>
+              {lojas.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {nomeLoja(l.nome, l.numero)}
+                </option>
+              ))}
+            </Selecao>
+            <Campo rotulo="Cargo (opcional)" value={cargo} onChange={(e) => setCargo(e.target.value)} />
+          </div>
+        </>
+      )}
+      {edicao.modo !== "editar" && (
+        <Campo
+          rotulo={edicao.modo === "senha" ? "Nova senha" : "Senha"}
+          type="password"
+          required
+          minLength={6}
+          autoComplete="new-password"
+          value={senha}
+          onChange={(e) => setSenha(e.target.value)}
+          ajuda="Mínimo de 6 caracteres. Passe para a pessoa pessoalmente."
+        />
+      )}
+      {erro && <AvisoErro>{erro}</AvisoErro>}
+      <div className="flex justify-end gap-2 pt-2">
+        <Botao variante="secundario" onClick={aoFechar}>
+          Cancelar
+        </Botao>
+        <Botao type="submit" carregando={salvando}>
+          {edicao.modo === "novo" ? "Criar usuário" : edicao.modo === "senha" ? "Redefinir senha" : "Salvar"}
+        </Botao>
+      </div>
+    </form>
   );
 }

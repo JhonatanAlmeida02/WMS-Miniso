@@ -4,22 +4,19 @@ import { KeyRound, Pencil, UserPlus, Users } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { chamarUsuarios, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
-import { nomeLoja, situacaoOnline, tempoRelativo } from "../lib/formato";
-import type { Loja, Papel, Perfil } from "../lib/tipos";
+import { situacaoOnline, tempoRelativo } from "../lib/formato";
+import type { Papel, Perfil } from "../lib/tipos";
 import { AvisoErro, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx } from "../components/ui";
 
 type Edicao = { modo: "novo" } | { modo: "editar"; perfil: Perfil } | { modo: "senha"; perfil: Perfil };
 
-function Formulario({ edicao, lojas, aoSalvar, aoFechar }: { edicao: Edicao; lojas: Loja[]; aoSalvar: () => void; aoFechar: () => void }) {
+function Formulario({ edicao, aoSalvar, aoFechar }: { edicao: Edicao; aoSalvar: () => void; aoFechar: () => void }) {
   const p = edicao.modo !== "novo" ? edicao.perfil : null;
   const [login, setLogin] = useState("");
   const [nome, setNome] = useState(p?.nome ?? "");
   const [cargo, setCargo] = useState(p?.cargo ?? "");
   const [papel, setPapel] = useState<Papel>(p?.papel ?? "operador");
-  const [lojaId, setLojaId] = useState(p?.loja_id ? String(p.loja_id) : "");
   const [senha, setSenha] = useState("");
-  // Usuário de loja não volta a ser equipe interna (o banco também impede)
-  const eraDeLoja = p?.loja_id != null;
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -29,10 +26,10 @@ function Formulario({ edicao, lojas, aoSalvar, aoFechar }: { edicao: Edicao; loj
     setSalvando(true);
     try {
       if (edicao.modo === "novo") {
-        await chamarUsuarios({ acao: "criar", login, nome, cargo, papel, senha, ...(papel === "operador" && lojaId ? { loja_id: Number(lojaId) } : {}) });
+        await chamarUsuarios({ acao: "criar", login, nome, cargo, papel, senha });
         toast.success(`Usuário ${login} criado`);
       } else if (edicao.modo === "editar") {
-        await chamarUsuarios({ acao: "atualizar", id: edicao.perfil.id, nome, cargo, papel, ...(lojaId ? { loja_id: Number(lojaId) } : {}) });
+        await chamarUsuarios({ acao: "atualizar", id: edicao.perfil.id, nome, cargo, papel });
         toast.success("Usuário atualizado");
       } else {
         await chamarUsuarios({ acao: "atualizar", id: edicao.perfil.id, senha });
@@ -65,28 +62,12 @@ function Formulario({ edicao, lojas, aoSalvar, aoFechar }: { edicao: Edicao; loj
         <>
           <Campo rotulo="Nome" required value={nome} onChange={(e) => setNome(e.target.value)} />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Selecao rotulo="Perfil" value={papel} onChange={(e) => setPapel(e.target.value as Papel)} disabled={eraDeLoja}>
+            <Selecao rotulo="Perfil" value={papel} onChange={(e) => setPapel(e.target.value as Papel)}>
               <option value="operador">Operador</option>
               <option value="supervisor">Supervisor</option>
             </Selecao>
             <Campo rotulo="Cargo (opcional)" value={cargo} onChange={(e) => setCargo(e.target.value)} />
           </div>
-          {papel === "operador" && (
-            <Selecao rotulo="Onde trabalha" value={lojaId} onChange={(e) => setLojaId(e.target.value)}>
-              {!eraDeLoja && <option value="">Equipe PRODIGY (CD): separa e confere</option>}
-              {lojas.map((l) => (
-                <option key={l.id} value={l.id}>
-                  Administrador da loja {nomeLoja(l.nome, l.numero)}
-                </option>
-              ))}
-            </Selecao>
-          )}
-          {lojaId && (
-            <p className="rounded-xl bg-azul-claro px-3 py-2 text-xs text-azul-escuro">
-              Vê só o painel e as entregas desta loja e confere o recebimento. Não entra na separação nem na conferência do CD. Para tirar o acesso, desative o
-              usuário.
-            </p>
-          )}
         </>
       )}
       {edicao.modo !== "editar" && (
@@ -122,11 +103,6 @@ export default function Usuarios() {
     () => supabase.from("perfis").select("*").order("ativo", { ascending: false }).order("nome"),
     [],
   );
-  const lojas = useConsulta<Loja[]>(() => supabase.from("lojas").select("*").order("numero", { ascending: true, nullsFirst: false }).order("nome"), []);
-  const nomeDaLoja = (id: number) => {
-    const l = (lojas.dados ?? []).find((x) => x.id === id);
-    return l ? nomeLoja(l.nome, l.numero) : "loja";
-  };
 
   async function alternarAtivo(p: Perfil) {
     setMudando(p.id);
@@ -185,8 +161,6 @@ export default function Usuarios() {
                           <Selo className="bg-navy/8 text-suave">Desativado</Selo>
                         ) : p.papel === "supervisor" ? (
                           <Selo className="bg-navy text-white">Supervisor</Selo>
-                        ) : p.loja_id != null ? (
-                          <Selo className="bg-ciano-claro text-ciano-escuro">Loja {nomeDaLoja(p.loja_id)}</Selo>
                         ) : (
                           <Selo className="bg-azul-claro text-azul-escuro">Operador</Selo>
                         )}
@@ -257,7 +231,6 @@ export default function Usuarios() {
           <Formulario
             key={edicao.modo + (edicao.modo !== "novo" ? edicao.perfil.id : "")}
             edicao={edicao}
-            lojas={lojas.dados ?? []}
             aoFechar={() => setEdicao(null)}
             aoSalvar={() => {
               setEdicao(null);

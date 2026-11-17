@@ -52,7 +52,7 @@ export default function Painel() {
   const totalSeparado = ativas.reduce((s, r) => s + r.qtd_separada, 0);
   const semOperador = peds.filter((p) => !p.operador_id).length;
   const completos = peds.filter((p) => p.qtd_pedido > 0 && p.qtd_separada >= p.qtd_pedido).length;
-  const equipe = (usuarios.dados ?? []).filter((u) => u.loja_id == null);
+  const equipe = usuarios.dados ?? [];
   const online = equipe.filter((u) => situacaoOnline(u.ultima_atividade) === "online").length;
 
   const porOperador = new Map<string, { pedido: number; separado: number; pedidos: number }>();
