@@ -32,6 +32,8 @@ Power Automate nem SharePoint.
 - **Ajuste/estorno** para corrigir erros, com sons e vibração de confirmação e de erro.
 - Lista "Meus pedidos" com o progresso de cada um.
 
+**Módulo das lojas** (painel da loja, expedição e conferência de recebimento): veja [docs/MODULO_LOJAS.md](docs/MODULO_LOJAS.md).
+
 ## Do Power Apps para cá
 
 | Power Apps / Power Automate | Aqui |

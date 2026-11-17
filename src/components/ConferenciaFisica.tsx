@@ -44,7 +44,7 @@ export function ConferenciaFisica({ remessa }: { remessa: Remessa }) {
     { tabelas: ["conferencias", "pedidos"] },
   );
   const usuarios = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").eq("ativo", true).order("nome"), []);
-  const equipe = usuarios.dados ?? [];
+  const equipe = (usuarios.dados ?? []).filter((u) => u.loja_id == null);
   const [salvando, setSalvando] = useState<number | "todos" | null>(null);
 
   async function atribuir(atrib: { pedido_id: number; conferente_id: string | null }[]) {

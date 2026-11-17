@@ -5,7 +5,7 @@ import { Toaster } from "sonner";
 import "./index.css";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { configurado } from "./lib/supabase";
-import { LayoutSupervisor, Protegido } from "./components/Layout";
+import { LayoutLoja, LayoutSupervisor, Protegido } from "./components/Layout";
 import { Carregando } from "./components/ui";
 const Login = lazy(() => import("./pages/Login"));
 const Painel = lazy(() => import("./pages/Painel"));
@@ -21,11 +21,19 @@ const Separacao = lazy(() => import("./pages/Separacao"));
 const Conferir = lazy(() => import("./pages/Conferir"));
 const InicioOperador = lazy(() => import("./pages/InicioOperador"));
 const Estatisticas = lazy(() => import("./pages/Estatisticas"));
+const Expedicao = lazy(() => import("./pages/Expedicao"));
+const PainelLoja = lazy(() => import("./pages/loja/PainelLoja"));
+const PainelLojaSupervisor = lazy(() => import("./pages/loja/PainelLoja").then((m) => ({ default: m.PainelLojaSupervisor })));
+const PedidoLoja = lazy(() => import("./pages/loja/PedidoLoja"));
+const PedidoLojaSupervisor = lazy(() => import("./pages/loja/PedidoLoja").then((m) => ({ default: m.PedidoLojaSupervisor })));
+const Entregas = lazy(() => import("./pages/loja/Entregas"));
+const ConferirRecebimento = lazy(() => import("./pages/loja/ConferirRecebimento"));
 
 function Inicio() {
   const { carregando, perfil } = useAuth();
   if (carregando) return <Carregando />;
   if (!perfil) return <Navigate to="/login" replace />;
+  if (perfil.loja_id != null) return <Navigate to="/loja" replace />;
   return <Navigate to={perfil.papel === "supervisor" ? "/painel" : "/inicio"} replace />;
 }
 
@@ -87,11 +95,34 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/remessas/:id" element={<RemessaDetalhe />} />
               <Route path="/distribuicao" element={<Distribuicao />} />
               <Route path="/conferencia" element={<Conferencia />} />
+              <Route path="/expedicao" element={<Expedicao />} />
+              <Route path="/expedicao/loja/:lojaId" element={<PainelLojaSupervisor />} />
+              <Route path="/expedicao/loja/:lojaId/pedidos/:id" element={<PedidoLojaSupervisor />} />
               <Route path="/bips" element={<LogBips />} />
               <Route path="/estatisticas" element={<Estatisticas />} />
               <Route path="/usuarios" element={<Usuarios />} />
               <Route path="/lojas" element={<Lojas />} />
             </Route>
+            {/* Módulo das lojas: só o administrador da loja (operador com loja vinculada) */}
+            <Route
+              element={
+                <Protegido loja>
+                  <LayoutLoja />
+                </Protegido>
+              }
+            >
+              <Route path="/loja" element={<PainelLoja />} />
+              <Route path="/loja/pedidos/:id" element={<PedidoLoja />} />
+              <Route path="/loja/entregas" element={<Entregas />} />
+            </Route>
+            <Route
+              path="/loja/conferir/:recebimento"
+              element={
+                <Protegido loja>
+                  <ConferirRecebimento />
+                </Protegido>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>

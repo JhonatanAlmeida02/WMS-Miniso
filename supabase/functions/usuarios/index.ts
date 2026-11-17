@@ -3,8 +3,12 @@
 // pode ir para o navegador; por isso essa parte roda aqui.
 // Sem dependências externas: fala direto com as APIs do Auth e do banco.
 //
-// POST { acao: "criar", login, nome, senha, papel, cargo? }
-// POST { acao: "atualizar", id, nome?, papel?, cargo?, ativo?, senha? }
+// POST { acao: "criar", login, nome, senha, papel, cargo?, loja_id? }
+// POST { acao: "atualizar", id, nome?, papel?, cargo?, ativo?, senha?, loja_id? }
+//
+// loja_id: o operador vira administrador daquela loja (módulo das lojas).
+// Só vale para operador; tirar a loja de alguém é recusado pelo banco
+// (para encerrar o acesso, desative o usuário).
 
 const DOMINIO_LOGIN = "usuarios.prodigy-wms.local";
 const PAPEIS = ["supervisor", "operador"];
@@ -76,6 +80,10 @@ Deno.serve(async (req) => {
     return resposta(400, { erro: "Requisição inválida" });
   }
   const texto = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  // undefined = não mexe; número inteiro positivo = loja escolhida
+  const lojaInformada = corpo.loja_id !== undefined && corpo.loja_id !== null;
+  const lojaId = Number(corpo.loja_id);
+  if (lojaInformada && !(Number.isInteger(lojaId) && lojaId > 0)) return resposta(400, { erro: "Loja inválida" });
 
   if (corpo.acao === "criar") {
     const login = texto(corpo.login).toLowerCase();
@@ -90,6 +98,7 @@ Deno.serve(async (req) => {
     if (!nome) return resposta(400, { erro: "Informe o nome" });
     if (senha.length < 6) return resposta(400, { erro: "A senha precisa ter pelo menos 6 caracteres" });
     if (!PAPEIS.includes(papel)) return resposta(400, { erro: "Perfil inválido" });
+    if (lojaInformada && papel !== "operador") return resposta(400, { erro: "Só operador pode ser vinculado a uma loja" });
 
     const existe = await api(`/rest/v1/perfis?select=id&login=eq.${encodeURIComponent(login)}`);
     if (Array.isArray(existe.corpo) && existe.corpo.length) {
@@ -111,7 +120,7 @@ Deno.serve(async (req) => {
     const perfil = await api("/rest/v1/perfis", {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ id: novoId, login, nome, papel, cargo }),
+      body: JSON.stringify({ id: novoId, login, nome, papel, cargo, ...(lojaInformada ? { loja_id: lojaId } : {}) }),
     });
     if (!perfil.ok) {
       await api(`/auth/v1/admin/users/${novoId}`, { method: "DELETE" });
@@ -137,6 +146,10 @@ Deno.serve(async (req) => {
         return resposta(400, { erro: "Você não pode tirar o seu próprio acesso de supervisor" });
       }
       mudancas.papel = corpo.papel;
+    }
+    if (lojaInformada) {
+      if (proprio) return resposta(400, { erro: "Você não pode se vincular a uma loja" });
+      mudancas.loja_id = lojaId;
     }
     if (corpo.ativo !== undefined) {
       if (proprio && corpo.ativo === false) {

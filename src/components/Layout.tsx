@@ -11,6 +11,7 @@ import {
   PackagePlus,
   ScanBarcode,
   Store,
+  Truck,
   Users,
   Waypoints,
   X,
@@ -24,18 +25,34 @@ const MENU = [
   { para: "/remessas", texto: "Remessas", icone: PackagePlus },
   { para: "/distribuicao", texto: "Distribuição", icone: Waypoints },
   { para: "/conferencia", texto: "Conferência", icone: ClipboardCheck },
+  { para: "/expedicao", texto: "Expedição", icone: Truck },
   { para: "/bips", texto: "Log de bips", icone: History },
   { para: "/estatisticas", texto: "Estatísticas", icone: ChartColumn },
   { para: "/usuarios", texto: "Usuários", icone: Users },
   { para: "/lojas", texto: "Lojas", icone: Store },
 ];
 
-/** Exige login (e, se pedido, perfil de supervisor). */
-export function Protegido({ supervisor, children }: { supervisor?: boolean; children: ReactNode }) {
+/** Menu do administrador da loja (operador com loja vinculada). */
+export const MENU_LOJA = [
+  { para: "/loja", texto: "Painel da loja", icone: LayoutDashboard },
+  { para: "/loja/entregas", texto: "Entregas", icone: Truck },
+];
+
+type ItemMenu = (typeof MENU)[number];
+
+/**
+ * Exige login (e, se pedido, perfil de supervisor). Usuário de loja só entra
+ * nas telas da loja (loja), e a equipe interna não entra nelas. O banco faz a
+ * mesma separação; isto aqui só leva cada um para a tela certa.
+ */
+export function Protegido({ supervisor, loja, children }: { supervisor?: boolean; loja?: boolean; children: ReactNode }) {
   const { carregando, sessao, perfil } = useAuth();
   const local = useLocation();
   if (carregando) return <Carregando />;
   if (!sessao || !perfil) return <Navigate to="/login" replace state={{ de: local.pathname }} />;
+  const deLoja = perfil.loja_id != null;
+  if (deLoja && !loja) return <Navigate to="/loja" replace />;
+  if (loja && !deLoja) return <Navigate to="/" replace />;
   if (supervisor && perfil.papel !== "supervisor") return <Navigate to="/inicio" replace />;
   return <>{children}</>;
 }
@@ -54,16 +71,27 @@ function Iniciais({ nome }: { nome: string }) {
   );
 }
 
-function Navegacao({ aoNavegar, recolhido = false }: { aoNavegar?: () => void; recolhido?: boolean }) {
+function Navegacao({
+  aoNavegar,
+  recolhido = false,
+  menu = MENU,
+  atalhoSeparacao = true,
+}: {
+  aoNavegar?: () => void;
+  recolhido?: boolean;
+  menu?: ItemMenu[];
+  atalhoSeparacao?: boolean;
+}) {
   // Recolhido: só o ícone; o nome vira dica ao passar o mouse e continua
   // disponível para leitor de tela
   const rotulo = (texto: string) => (recolhido ? <span className="sr-only">{texto}</span> : <span className="truncate">{texto}</span>);
   return (
     <nav className="flex flex-col gap-1" aria-label="Principal">
-      {MENU.map(({ para, texto, icone: Icone }) => (
+      {menu.map(({ para, texto, icone: Icone }) => (
         <NavLink
           key={para}
           to={para}
+          end={para === "/loja"}
           onClick={aoNavegar}
           title={recolhido ? texto : undefined}
           className={({ isActive }) =>
@@ -83,6 +111,8 @@ function Navegacao({ aoNavegar, recolhido = false }: { aoNavegar?: () => void; r
           )}
         </NavLink>
       ))}
+      {atalhoSeparacao && (
+        <>
       <div className="my-3 h-px bg-white/10" />
       <NavLink
         to="/separacao"
@@ -96,11 +126,13 @@ function Navegacao({ aoNavegar, recolhido = false }: { aoNavegar?: () => void; r
         <ScanBarcode className="size-5 shrink-0" aria-hidden />
         {rotulo("Abrir separação")}
       </NavLink>
+        </>
+      )}
     </nav>
   );
 }
 
-function Rodape({ recolhido = false }: { recolhido?: boolean }) {
+function Rodape({ recolhido = false, papel = "Supervisor" }: { recolhido?: boolean; papel?: string }) {
   const { perfil, sair } = useAuth();
   if (!perfil) return null;
   if (recolhido) {
@@ -124,7 +156,7 @@ function Rodape({ recolhido = false }: { recolhido?: boolean }) {
       <Iniciais nome={perfil.nome} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-white">{perfil.nome}</p>
-        <p className="text-xs text-white/60">Supervisor</p>
+        <p className="text-xs text-white/60">{papel}</p>
       </div>
       <button
         type="button"
@@ -149,7 +181,16 @@ function lerRecolhido() {
   }
 }
 
-export function LayoutSupervisor() {
+/** Mesma estrutura do supervisor, com o menu da loja. */
+export function LayoutLoja() {
+  return <LayoutSupervisor menu={MENU_LOJA} papel="Administrador da loja" atalhoSeparacao={false} />;
+}
+
+export function LayoutSupervisor({
+  menu = MENU,
+  papel = "Supervisor",
+  atalhoSeparacao = true,
+}: { menu?: ItemMenu[]; papel?: string; atalhoSeparacao?: boolean } = {}) {
   const [menuAberto, setMenuAberto] = useState(false);
   const [recolhido, setRecolhido] = useState(lerRecolhido);
 
@@ -191,9 +232,9 @@ export function LayoutSupervisor() {
           <ChevronLeft className={cx("size-4 transition-transform duration-200", recolhido && "rotate-180")} />
         </button>
         <div className="flex-1 overflow-x-hidden overflow-y-auto">
-          <Navegacao recolhido={recolhido} />
+          <Navegacao recolhido={recolhido} menu={menu} atalhoSeparacao={atalhoSeparacao} />
         </div>
-        <Rodape recolhido={recolhido} />
+        <Rodape recolhido={recolhido} papel={papel} />
       </aside>
 
       {/* Topo (celular/tablet) */}
@@ -229,9 +270,9 @@ export function LayoutSupervisor() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <Navegacao aoNavegar={() => setMenuAberto(false)} />
+              <Navegacao aoNavegar={() => setMenuAberto(false)} menu={menu} atalhoSeparacao={atalhoSeparacao} />
             </div>
-            <Rodape />
+            <Rodape papel={papel} />
           </div>
         </div>
       )}

@@ -11,7 +11,8 @@
     "criar-supervisor": "node scripts/criar-supervisor.mjs",
     "test:e2e": "playwright test --trace off",
     "test:db": "node --test tests/integracao.test.mjs",
-    "test:carga": "node tests/carga.mjs"
+    "test:carga": "node tests/carga.mjs",
+    "test:sql": "bash tests/sql/rodar.sh"
   },
   "dependencies": {
     "@fontsource/prompt": "5.3.0",

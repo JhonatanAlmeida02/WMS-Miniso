@@ -6,7 +6,7 @@ import { mensagemErro, supabase } from "./supabase";
  * Tabelas com tempo real. itens_pedido não entra: toda mudança de item vem de
  * um bip (registrar_bip grava em bips), então quem precisa de saldo escuta bips.
  */
-type Tabela = "bips" | "pedidos" | "remessas" | "conferencias";
+type Tabela = "bips" | "pedidos" | "remessas" | "conferencias" | "expedicoes" | "recebimentos_loja" | "divergencias";
 
 // Um canal por tabela para o app inteiro, compartilhado por todas as telas
 // abertas: cada mudança no banco chega uma vez só (cota de mensagens do Supabase).
