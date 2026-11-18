@@ -17,7 +17,12 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { supabase } from "../lib/supabase";
+import { useConsulta } from "../lib/useConsulta";
+import { nomeLoja } from "../lib/formato";
+import type { Loja } from "../lib/tipos";
 import { Logo } from "./Logo";
+import { SeloLoja } from "./SeloLoja";
 import { Carregando, cx } from "./ui";
 
 const MENU = [
@@ -182,16 +187,42 @@ function lerRecolhido() {
   }
 }
 
-/** Mesma estrutura do supervisor, com o menu da loja. */
+/** Mesma estrutura do supervisor, com o menu e o nome da loja. */
 export function LayoutLoja() {
-  return <LayoutSupervisor menu={MENU_LOJA} papel="Administrador da loja" atalhoSeparacao={false} />;
+  const { perfil } = useAuth();
+  const loja = useConsulta<Loja>(
+    () => supabase.from("lojas").select("*").eq("id", perfil?.loja_id ?? -1).maybeSingle(),
+    [perfil?.loja_id],
+  );
+  const nome = loja.dados ? nomeLoja(loja.dados.nome, loja.dados.numero) : null;
+  return (
+    <LayoutSupervisor
+      menu={MENU_LOJA}
+      papel={nome ? `Loja ${nome}` : "Administrador da loja"}
+      atalhoSeparacao={false}
+      identificacao={
+        loja.dados ? (
+          <div className="mb-6 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-borda">
+            <SeloLoja numero={loja.dados.numero} nome={loja.dados.nome} className="size-10 text-base" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold tracking-[0.14em] text-suave uppercase">Sua loja</p>
+              <p className="truncate text-lg leading-tight font-semibold">{nome}</p>
+            </div>
+          </div>
+        ) : null
+      }
+      tituloCelular={nome ?? undefined}
+    />
+  );
 }
 
 export function LayoutSupervisor({
   menu = MENU,
   papel = "Supervisor",
   atalhoSeparacao = true,
-}: { menu?: ItemMenu[]; papel?: string; atalhoSeparacao?: boolean } = {}) {
+  identificacao,
+  tituloCelular,
+}: { menu?: ItemMenu[]; papel?: string; atalhoSeparacao?: boolean; identificacao?: ReactNode; tituloCelular?: string } = {}) {
   const [menuAberto, setMenuAberto] = useState(false);
   const [recolhido, setRecolhido] = useState(lerRecolhido);
 
@@ -240,7 +271,10 @@ export function LayoutSupervisor({
 
       {/* Topo (celular/tablet) */}
       <header className="sticky top-0 z-20 flex h-16 items-center justify-between bg-navy px-4 lg:hidden">
-        <Logo variante="negativo" className="h-6" />
+        <div className="flex min-w-0 items-center gap-3">
+          <Logo variante="negativo" className="h-6" />
+          {tituloCelular && <span className="truncate text-sm font-semibold text-white">Loja {tituloCelular}</span>}
+        </div>
         <button
           type="button"
           onClick={() => setMenuAberto(true)}
@@ -279,6 +313,7 @@ export function LayoutSupervisor({
       )}
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        {identificacao}
         <Outlet />
       </main>
     </div>

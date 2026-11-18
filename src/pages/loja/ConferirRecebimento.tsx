@@ -6,7 +6,7 @@ import { useAuth } from "../../lib/auth";
 import { mensagemErro, supabase } from "../../lib/supabase";
 import { useLeitor } from "../../lib/useLeitor";
 import { novaOperacao, rpcSegura, useConexao } from "../../lib/operacao";
-import { fmtNum, fmtPct, tempoRelativo } from "../../lib/formato";
+import { fmtNum, fmtPct, nomeLoja, tempoRelativo } from "../../lib/formato";
 import { somAviso, somErro, somOk, vibrar } from "../../lib/som";
 import type { Expedicao, LinhaRecebimento, StatusRecebimento } from "../../lib/tipos";
 import { Logo } from "../../components/Logo";
@@ -185,6 +185,7 @@ export default function ConferirRecebimento() {
           <div className="min-w-0 flex-1">
             <p className="text-[15px] leading-tight font-semibold">Conferência de recebimento</p>
             <p className="truncate text-xs text-white/65">
+              {entrega ? `Loja ${nomeLoja(entrega.loja_nome, entrega.loja_numero)} · ` : ""}
               {perfil?.nome}
               {entrega && ` · Remessa ${entrega.remessa_codigo}`}
             </p>
