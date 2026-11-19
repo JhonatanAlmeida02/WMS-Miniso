@@ -201,7 +201,12 @@ export function LayoutLoja() {
       papel={nome ? `Loja ${nome}` : "Administrador da loja"}
       atalhoSeparacao={false}
       identificacao={
-        loja.dados ? (
+        !loja.carregando && !loja.dados ? (
+          <div className="mb-6 rounded-2xl bg-amarelo-claro px-4 py-3 text-sm text-[#7a5200] ring-1 ring-amarelo/40" role="alert">
+            <p className="font-semibold">O acesso da sua loja ainda não foi liberado</p>
+            <p>Enquanto a PRODIGY não liberar a loja, os pedidos e as entregas não aparecem aqui. Fale com a PRODIGY.</p>
+          </div>
+        ) : loja.dados ? (
           <div className="mb-6 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-borda">
             <SeloLoja numero={loja.dados.numero} nome={loja.dados.nome} className="size-10 text-base" />
             <div className="min-w-0">
