@@ -54,6 +54,7 @@ export function QuantidadeLeitura({
   qtd,
   setQtd,
   falta,
+  limite,
   campoRef,
   aoDigitar,
   gravando,
@@ -70,6 +71,8 @@ export function QuantidadeLeitura({
   setQtd: (v: string) => void;
   /** Quanto ainda falta (mostra o atalho "Tudo"); 0 ou menos esconde. */
   falta: number;
+  /** Opcional: máximo ainda disponível para a conferência do CD. */
+  limite?: number;
   campoRef: RefObject<HTMLInputElement | null>;
   /** Para reconhecer um novo bip no campo de quantidade. */
   aoDigitar: (novo: string, anterior: string) => void;
@@ -78,7 +81,8 @@ export function QuantidadeLeitura({
   aoCancelar: () => void;
   textoConfirmar?: string;
 }) {
-  const valida = qtdValida(qtd);
+  const excedeu = limite != null && Number(qtd) > limite;
+  const valida = qtdValida(qtd) && !excedeu;
   return (
     <form
       onSubmit={(e: FormEvent) => {
@@ -123,6 +127,7 @@ export function QuantidadeLeitura({
             id="campo-qtd-conferencia"
             ref={campoRef}
             value={qtd}
+            aria-invalid={!valida}
             onChange={(e) => {
               // O "1" já vem selecionado: o primeiro dígito começa a contagem do leitor
               aoDigitar(e.target.value, e.target.value.length <= 1 ? "" : qtd);
@@ -153,6 +158,7 @@ export function QuantidadeLeitura({
             {textoConfirmar}
           </button>
         </div>
+        {excedeu && <p role="alert" className="text-xs font-medium text-erro">Quantidade acima do pedido. Disponível: {limite} unidade(s).</p>}
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <button type="button" onClick={aoCancelar} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-suave hover:bg-fundo">
             <X className="size-4" /> Cancelar

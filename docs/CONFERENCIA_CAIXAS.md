@@ -2,7 +2,7 @@
 
 Na conferência do CD (`/conferir`), cada leitura confirmada pelo servidor alimenta a caixa aberta com SKU (GTIN), descrição e quantidade. Repetições do mesmo SKU são somadas. As bipagens normais continuam sendo gravadas pelo fluxo já existente da conferência; não há tabela, chamada extra ou histórico para os itens das caixas.
 
-Produtos fora do pedido atual são barrados antes de abrir a quantidade ou enviar a bipagem, inclusive no modo rápido. O banco repete a validação antes de gravar. Ocorrências anteriores continuam no histórico; estornos negativos permanecem permitidos para corrigir erros antigos.
+Produtos fora do pedido atual são barrados antes de abrir a quantidade ou enviar a bipagem, inclusive no modo rápido. O banco repete a validação antes de gravar. A quantidade acumulada por SKU não pode ultrapassar a quantidade do pedido: pedido 10 bloqueia 11, e após conferir 8 só permite mais 2, mesmo em outra caixa. O modo rápido também respeita esse saldo. A função serializa as leituras da conferência antes de somar e validar; estornos de contagens antigas acima do pedido continuam permitidos. Ocorrências anteriores continuam no histórico; estornos negativos permanecem permitidos para corrigir erros antigos.
 
 1. A primeira caixa começa no volume 1.
 2. **Fechar caixa e imprimir** solicita a impressão da lista atual, descarta os itens e as últimas leituras da caixa e abre a próxima caixa vazia.

@@ -14,7 +14,7 @@ import {
   ScanBarcode,
   Undo2,
 } from "lucide-react";
-import { produtoDaConferencia } from "../lib/produtoConferencia";
+import { produtoDaConferencia, saldoDoPedido } from "../lib/produtoConferencia";
 import { aplicarLeituraCaixa, textoVolume, type ItemCaixa } from "../lib/caixaTemporaria";
 import { imprimirEtiquetaCaixa } from "../lib/imprimirEtiquetaCaixa";
 import { useAuth } from "../lib/auth";
@@ -248,6 +248,7 @@ function TelaConferencia({
   const campoQtd = useRef<HTMLInputElement>(null);
   const [gravando, setGravando] = useState(false);
   const [produtoBloqueado, setProdutoBloqueado] = useState<string | null>(null);
+  const [erroQuantidade, setErroQuantidade] = useState<string | null>(null);
   const [leituras, setLeituras] = useState<Leitura[]>([]);
   const [confrontar, setConfrontar] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
@@ -302,6 +303,7 @@ function TelaConferencia({
   }, [linhas]);
 
   function barrarProduto(codigo: string) {
+    setErroQuantidade(null);
     setProdutoBloqueado(codigo);
     setPendente(null);
     setGtin("");
@@ -311,10 +313,23 @@ function TelaConferencia({
     focar();
   }
 
+  function barrarQuantidade(codigo: string) {
+    const disponivel = saldoDoPedido(linhas?.find(l => l.gtin === codigo));
+    const mensagem = `Quantidade acima do pedido. Disponível: ${disponivel} unidade(s).`;
+    setErroQuantidade(mensagem);
+    setGtin("");
+    somErro();
+    vibrar([80,60,80]);
+    toast.error(mensagem);
+    requestAnimationFrame(() => (pendente ? campoQtd.current : campo.current)?.focus());
+  }
+
   async function bipar(codigo: string, qtd: number): Promise<boolean> {
     const c = codigo.replace(/\s/g, "");
     if (!c || ocupado.current || fechando.current || status !== "em_andamento") return false;
     if (qtd > 0 && !produtoDaConferencia(linhas ?? [], c)) { barrarProduto(c); return false; }
+    if (qtd > 0 && qtd > saldoDoPedido(linhas?.find(l => l.gtin === c))) { barrarQuantidade(c); return false; }
+    setErroQuantidade(null);
     if (qtd < 0 && -(caixa.find(i => i.sku === c)?.qtd ?? 0) > qtd) {
       toast.error("Só é possível desfazer itens da caixa aberta.");
       return false;
@@ -568,6 +583,7 @@ function TelaConferencia({
           </div>
 
           {produtoBloqueado && <div role="alert" className="shrink-0 border-b border-erro/20 bg-erro-claro px-4 py-2 text-sm font-medium text-erro">Produto {produtoBloqueado} fora do pedido desta loja. Leitura bloqueada.</div>}
+          {erroQuantidade && <div role="alert" className="shrink-0 border-b border-erro/20 bg-erro-claro px-4 py-2 text-sm font-medium text-erro">{erroQuantidade}</div>}
           <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             {/* Resultado do último bip */}
             <div className="min-w-0">
@@ -580,14 +596,15 @@ function TelaConferencia({
                   numeros={
                     pendente.linha
                       ? [
-                          { rotulo: "Separado", valor: pendente.linha.qtd_separada },
+                          { rotulo: "Pedido", valor: pendente.linha.qtd_pedido },
                           { rotulo: "Conferido", valor: pendente.linha.qtd_conferida },
                         ]
                       : []
                   }
                   qtd={qtd}
-                  setQtd={setQtd}
-                  falta={pendente.linha ? pendente.linha.qtd_separada - pendente.linha.qtd_conferida : 0}
+                  setQtd={(valor) => { setQtd(valor); setErroQuantidade(null); }}
+                  falta={saldoDoPedido(pendente.linha)}
+                  limite={saldoDoPedido(pendente.linha)}
                   campoRef={campoQtd}
                   aoDigitar={leitorQtd.digitou}
                   gravando={gravando}
