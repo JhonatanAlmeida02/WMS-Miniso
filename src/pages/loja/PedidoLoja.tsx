@@ -18,11 +18,12 @@ import {
   pctOuSemItens,
   podeConferir,
   situacaoPedido,
+  type Visao,
 } from "../../components/loja/comum";
 import { useAtualizacao } from "./PainelLoja";
 
 /** Confronto de uma entrega, num modal (loja e supervisor). */
-export function ModalConfronto({ entrega, aoFechar }: { entrega: Expedicao | null; aoFechar: () => void }) {
+export function ModalConfronto({ entrega, aoFechar, visao = "prodigy" }: { entrega: Expedicao | null; aoFechar: () => void; visao?: Visao }) {
   const [linhas, setLinhas] = useState<LinhaRecebimento[] | null>(null);
   useEffect(() => {
     if (!entrega) return;
@@ -34,13 +35,25 @@ export function ModalConfronto({ entrega, aoFechar }: { entrega: Expedicao | nul
       {entrega?.recebimento_status === "em_conferencia" && (
         <p className="mb-3 rounded-xl bg-azul-claro px-3 py-2 text-sm text-azul-escuro">Conferência ainda em andamento: os números podem mudar.</p>
       )}
-      {linhas ? <ConfrontoRecebimento linhas={linhas} /> : <Carregando />}
+      {linhas ? <ConfrontoRecebimento linhas={linhas} visao={visao} /> : <Carregando />}
     </Modal>
   );
 }
 
 /** Detalhe do pedido da loja: produtos, entregas parciais e histórico do recebimento. */
-export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId: number; voltar: string; rotaConferir?: (recebimento: number) => string }) {
+export function DetalhePedidoLoja({
+  pedidoId,
+  voltar,
+  rotaConferir,
+  visao = "prodigy",
+}: {
+  pedidoId: number;
+  voltar: string;
+  rotaConferir?: (recebimento: number) => string;
+  /** A loja vê só pedido, conferido e faltante. */
+  visao?: Visao;
+}) {
+  const daLoja = visao === "loja";
   const online = useConexao();
   const navegar = useNavigate();
   const pedido = useConsulta<TPedidoLoja>(() => supabase.from("v_loja_pedidos").select("*").eq("pedido_id", pedidoId).single(), [pedidoId], {
@@ -96,6 +109,19 @@ export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId
         <EstadoAtualizacao quando={quando} online={online} aoAtualizar={recarregar} />
       </div>
 
+      {daLoja ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Indicador rotulo="Pedido" valor={fmtNum(p.qtd_pedido)} detalhe={`${p.itens} produtos`} />
+          <Indicador rotulo="Conferido" valor={fmtNum(p.qtd_recebida)} detalhe={p.qtd_avariada ? `${fmtNum(p.qtd_avariada)} avariadas` : "un. conferidas na loja"} destaque="bg-ciano" />
+          <Indicador
+            rotulo="Faltante"
+            valor={fmtNum(Math.max(0, p.qtd_pedido - p.qtd_recebida))}
+            detalhe="pedido − conferido"
+            destaque={p.qtd_pedido > p.qtd_recebida ? "bg-erro" : "bg-ciano"}
+          />
+          <Indicador rotulo="Volumes" valor={`${p.volumes_recebidos}/${p.volumes_expedidos}`} detalhe="conferidos/recebidos" />
+        </div>
+      ) : (
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Indicador rotulo="Pedido" valor={fmtNum(p.qtd_pedido)} detalhe={`${p.itens} produtos`} />
         <Indicador rotulo="Separado" valor={pctOuSemItens(p.qtd_separada, p.qtd_pedido)} detalhe={`${fmtNum(p.qtd_separada)} un.`} destaque="bg-ciano">
@@ -105,6 +131,7 @@ export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId
         <Indicador rotulo="Expedido" valor={fmtNum(p.qtd_expedida)} detalhe={`${fmtNum(Math.max(0, p.qtd_pedido - p.qtd_expedida))} un. a expedir`} destaque="bg-amarelo" />
         <Indicador rotulo="Recebido" valor={fmtNum(p.qtd_recebida)} detalhe={p.qtd_avariada ? `${fmtNum(p.qtd_avariada)} avariadas` : `${p.volumes_recebidos}/${p.volumes_expedidos} volumes`} destaque={p.entregas_com_divergencia ? "bg-erro" : "bg-ciano"} />
       </div>
+      )}
 
       {/* Entregas */}
       <Cartao className="mt-6 overflow-hidden">
@@ -112,7 +139,7 @@ export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId
           <h2 className="flex items-center gap-2 font-semibold">
             <Truck className="size-4 text-azul" aria-hidden /> Entregas
           </h2>
-          <p className="text-xs text-suave">Cada entrega é conferida contra o que saiu nela, não contra o pedido inteiro.</p>
+          {!daLoja && <p className="text-xs text-suave">Cada entrega é conferida contra o que saiu nela, não contra o pedido inteiro.</p>}
         </div>
         {entregas.erro && <AvisoErro>{entregas.erro}</AvisoErro>}
         {(entregas.dados ?? []).length === 0 ? (
@@ -130,8 +157,17 @@ export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId
                     {e.revisao > 1 && <Selo className="bg-navy/8 text-suave">recontagem {e.revisao}</Selo>}
                   </p>
                   <p className="tabular text-xs text-suave">
-                    Expedida {fmtDataHora(e.expedida_em)} · {fmtNum(e.qtd_expedida)} un. em {e.produtos} {e.produtos === 1 ? "produto" : "produtos"}
-                    {e.recebimento_status !== "aguardando" && ` · recebido ${fmtNum(e.qtd_integra + e.qtd_avariada)} un.`}
+                    {daLoja ? (
+                      <>
+                        Enviada {fmtDataHora(e.expedida_em)} · {e.produtos} {e.produtos === 1 ? "produto" : "produtos"}
+                        {e.recebimento_status !== "aguardando" && ` · conferido ${fmtNum(e.qtd_integra + e.qtd_avariada)} un.`}
+                      </>
+                    ) : (
+                      <>
+                        Expedida {fmtDataHora(e.expedida_em)} · {fmtNum(e.qtd_expedida)} un. em {e.produtos} {e.produtos === 1 ? "produto" : "produtos"}
+                        {e.recebimento_status !== "aguardando" && ` · recebido ${fmtNum(e.qtd_integra + e.qtd_avariada)} un.`}
+                      </>
+                    )}
                     {e.qtd_avariada > 0 && ` (${fmtNum(e.qtd_avariada)} avariadas)`}
                     {e.finalizado_em && ` · finalizada ${fmtDataHora(e.finalizado_em)}`}
                     {e.finalizado_por_nome && ` por ${e.finalizado_por_nome}`}
@@ -167,6 +203,37 @@ export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId
           <Carregando />
         ) : (
           <div className="max-h-[520px] overflow-auto">
+            {daLoja ? (
+              <table className="w-full min-w-[480px] text-sm">
+                <thead className="sticky top-0 bg-fundo text-left text-xs font-semibold tracking-wide text-suave uppercase">
+                  <tr>
+                    <th className="px-5 py-2">Produto</th>
+                    <th className="px-3 py-2 text-right">Pedido</th>
+                    <th className="px-3 py-2 text-right">Conferido</th>
+                    <th className="px-5 py-2 text-right">Faltante</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-borda">
+                  {(itens.dados ?? []).map((i) => {
+                    const f = Math.max(0, i.qtd_pedido - i.qtd_recebida);
+                    return (
+                      <tr key={i.item_id}>
+                        <td className="px-5 py-2">
+                          <span className="line-clamp-1">{i.produto}</span>
+                          <span className="tabular block text-xs text-suave">
+                            {i.gtin}
+                            {i.qtd_avariada > 0 && <span className="font-semibold text-[#7a5200]"> · {i.qtd_avariada} avariada(s)</span>}
+                          </span>
+                        </td>
+                        <td className="tabular px-3 py-2 text-right">{i.qtd_pedido}</td>
+                        <td className="tabular px-3 py-2 text-right font-semibold">{i.qtd_recebida}</td>
+                        <td className={cx("tabular px-5 py-2 text-right font-semibold", f > 0 ? "text-erro" : "text-suave")}>{f || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
             <table className="w-full min-w-[860px] text-sm">
               <thead className="sticky top-0 bg-fundo text-left text-xs font-semibold tracking-wide text-suave uppercase">
                 <tr>
@@ -200,6 +267,7 @@ export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId
                 ))}
               </tbody>
             </table>
+            )}
           </div>
         )}
       </Cartao>
@@ -252,7 +320,7 @@ export function DetalhePedidoLoja({ pedidoId, voltar, rotaConferir }: { pedidoId
         </Cartao>
       )}
 
-      <ModalConfronto entrega={confronto} aoFechar={() => setConfronto(null)} />
+      <ModalConfronto entrega={confronto} aoFechar={() => setConfronto(null)} visao={visao} />
     </>
   );
 }
@@ -265,6 +333,7 @@ export default function PedidoLoja() {
       pedidoId={Number(id)}
       voltar="/loja"
       rotaConferir={perfil?.loja_id ? (r) => `/loja/conferir/${r}` : undefined}
+      visao="loja"
     />
   );
 }
