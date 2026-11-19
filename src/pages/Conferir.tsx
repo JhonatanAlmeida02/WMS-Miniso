@@ -13,6 +13,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { ehGestor } from "../lib/papeis";
 import { mensagemErro, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { useLeitor } from "../lib/useLeitor";
@@ -61,7 +62,7 @@ export default function Conferir() {
   const { lista: remessas, escolhida, escolher, carregando: carregandoRemessas } = useRemessaEscolhida(true);
   const confId = Number(params.get("conf")) || null;
 
-  const ehSupervisor = perfil?.papel === "supervisor";
+  const ehSupervisor = ehGestor(perfil);
   const lojas = useConsulta<ConferenciaLoja[]>(
     () => {
       let q = supabase
@@ -95,7 +96,7 @@ export default function Conferir() {
     setParams({ remessa: String(l.remessa_id), conf: String(data) });
   }
 
-  const voltarPara = perfil?.papel === "supervisor" ? "/conferencia" : "/inicio";
+  const voltarPara = ehGestor(perfil) ? "/conferencia" : "/inicio";
 
   return (
     <div className="flex h-dvh flex-col bg-fundo">

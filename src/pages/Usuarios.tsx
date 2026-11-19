@@ -5,31 +5,92 @@ import { useAuth } from "../lib/auth";
 import { chamarUsuarios, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { situacaoOnline, tempoRelativo } from "../lib/formato";
-import type { Papel, Perfil } from "../lib/tipos";
+import type { EscopoVisualizador, Loja, Papel, Perfil } from "../lib/tipos";
+import { ROTULO_ESCOPO, ROTULO_PAPEL, ehAdministrador, ehOwner, papeisQueConcede } from "../lib/papeis";
+import { nomeLoja } from "../lib/formato";
 import { AvisoErro, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx } from "../components/ui";
 
 type Edicao = { modo: "novo" } | { modo: "editar"; perfil: Perfil } | { modo: "senha"; perfil: Perfil };
 
-function Formulario({ edicao, aoSalvar, aoFechar }: { edicao: Edicao; aoSalvar: () => void; aoFechar: () => void }) {
+const DESCRICAO_PAPEL: Record<Papel, string> = {
+  owner: "Acesso completo. Gerencia os administradores.",
+  administrador: "Operação e configurações. Gerencia supervisores, operadores, visualizadores e os acessos das lojas.",
+  supervisor: "Coordena a operação do CD: remessas, distribuição, conferência, expedição e recebimentos.",
+  operador: "Separa e confere as tarefas atribuídas a ele.",
+  visualizador: "Só consulta painéis e relatórios das lojas do seu escopo. Não grava nem exporta.",
+};
+
+/** O que o servidor também confere: quem pode mexer em quem. */
+function podeGerir(eu: Perfil | null, alvo: Perfil) {
+  if (!eu) return false;
+  if (alvo.id === eu.id) return true;
+  if (alvo.papel === "owner") return false;
+  if (alvo.papel === "administrador") return ehOwner(eu);
+  return ehAdministrador(eu);
+}
+
+function Formulario({
+  edicao,
+  eu,
+  lojas,
+  vinculos,
+  aoSalvar,
+  aoFechar,
+}: {
+  edicao: Edicao;
+  eu: Perfil | null;
+  lojas: Loja[];
+  vinculos: number[];
+  aoSalvar: () => void;
+  aoFechar: () => void;
+}) {
   const p = edicao.modo !== "novo" ? edicao.perfil : null;
+  const concede = papeisQueConcede(eu);
+  const proprio = !!p && p.id === eu?.id;
+  // Papel que não pode ser trocado aqui (o próprio, ou fora do que eu concedo)
+  const papelFixo = !!p && (proprio || !concede.includes(p.papel));
   const [login, setLogin] = useState("");
   const [nome, setNome] = useState(p?.nome ?? "");
   const [cargo, setCargo] = useState(p?.cargo ?? "");
   const [papel, setPapel] = useState<Papel>(p?.papel ?? "operador");
+  const [escopo, setEscopo] = useState<EscopoVisualizador | "">(p?.escopo_visualizador ?? "");
+  const [marcadas, setMarcadas] = useState<Set<number>>(() => new Set(vinculos));
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const visualizador = papel === "visualizador";
+
+  function alternarLoja(id: number) {
+    setMarcadas((m) => {
+      const n = new Set(m);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
 
   async function enviar(e: FormEvent) {
     e.preventDefault();
     setErro(null);
+    if (edicao.modo !== "senha" && visualizador && !escopo) {
+      setErro("Escolha o escopo do visualizador: por loja ou Global MINISO.");
+      return;
+    }
+    const doEscopo = visualizador ? { escopo, lojas: escopo === "lojas" ? [...marcadas] : [] } : {};
     setSalvando(true);
     try {
       if (edicao.modo === "novo") {
-        await chamarUsuarios({ acao: "criar", login, nome, cargo, papel, senha });
+        await chamarUsuarios({ acao: "criar", login, nome, cargo, papel, senha, ...doEscopo });
         toast.success(`Usuário ${login} criado`);
       } else if (edicao.modo === "editar") {
-        await chamarUsuarios({ acao: "atualizar", id: edicao.perfil.id, nome, cargo, papel });
+        await chamarUsuarios({
+          acao: "atualizar",
+          id: edicao.perfil.id,
+          nome,
+          cargo,
+          ...(papelFixo ? {} : { papel }),
+          ...(!papelFixo || edicao.perfil.papel === "visualizador" ? doEscopo : {}),
+        });
         toast.success("Usuário atualizado");
       } else {
         await chamarUsuarios({ acao: "atualizar", id: edicao.perfil.id, senha });
@@ -62,12 +123,74 @@ function Formulario({ edicao, aoSalvar, aoFechar }: { edicao: Edicao; aoSalvar: 
         <>
           <Campo rotulo="Nome" required value={nome} onChange={(e) => setNome(e.target.value)} />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Selecao rotulo="Perfil" value={papel} onChange={(e) => setPapel(e.target.value as Papel)}>
-              <option value="operador">Operador</option>
-              <option value="supervisor">Supervisor</option>
-            </Selecao>
+            {papelFixo ? (
+              <div>
+                <p className="mb-1.5 text-sm font-medium">Perfil</p>
+                <p className="flex h-11 items-center rounded-xl bg-fundo px-3 text-sm">{ROTULO_PAPEL[papel]}</p>
+              </div>
+            ) : (
+              <Selecao rotulo="Perfil" value={papel} onChange={(e) => setPapel(e.target.value as Papel)}>
+                {concede.map((k) => (
+                  <option key={k} value={k}>
+                    {ROTULO_PAPEL[k]}
+                  </option>
+                ))}
+              </Selecao>
+            )}
             <Campo rotulo="Cargo (opcional)" value={cargo} onChange={(e) => setCargo(e.target.value)} />
           </div>
+          <p className="-mt-2 text-xs text-suave">{DESCRICAO_PAPEL[papel]}</p>
+
+          {visualizador && (!papelFixo || p?.papel === "visualizador") && (
+            <fieldset className="space-y-3 rounded-2xl bg-fundo p-4">
+              <legend className="sr-only">Escopo do visualizador</legend>
+              <p className="text-sm font-medium">O que esta conta pode ver</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(["lojas", "global_miniso"] as const).map((k) => (
+                  <label
+                    key={k}
+                    className={cx(
+                      "flex cursor-pointer items-start gap-2 rounded-xl bg-white p-3 text-sm ring-1",
+                      escopo === k ? "ring-2 ring-azul" : "ring-borda",
+                    )}
+                  >
+                    <input type="radio" name="escopo" className="mt-0.5 accent-azul" checked={escopo === k} onChange={() => setEscopo(k)} />
+                    <span>
+                      <span className="block font-semibold">{ROTULO_ESCOPO[k]}</span>
+                      <span className="block text-xs text-suave">
+                        {k === "lojas"
+                          ? "Só as lojas marcadas abaixo. Loja nova precisa ser marcada."
+                          : "Todas as lojas MINISO e a operação da PRODIGY ligada a elas, inclusive lojas novas."}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {escopo === "lojas" && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-xs text-suave">
+                    <span>
+                      {marcadas.size} {marcadas.size === 1 ? "loja marcada" : "lojas marcadas"}
+                    </span>
+                    {marcadas.size > 0 && (
+                      <button type="button" className="font-medium text-azul-escuro hover:underline" onClick={() => setMarcadas(new Set())}>
+                        Desmarcar todas
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid max-h-56 gap-1 overflow-y-auto rounded-xl bg-white p-2 ring-1 ring-borda sm:grid-cols-2">
+                    {lojas.map((l) => (
+                      <label key={l.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-azul-claro/40">
+                        <input type="checkbox" className="size-4 accent-azul" checked={marcadas.has(l.id)} onChange={() => alternarLoja(l.id)} />
+                        <span className="truncate">{nomeLoja(l.nome, l.numero)}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {marcadas.size === 0 && <p className="mt-2 text-xs text-[#7a5200]">Sem nenhuma loja marcada, a conta entra mas não vê dados.</p>}
+                </div>
+              )}
+            </fieldset>
+          )}
         </>
       )}
       {edicao.modo !== "editar" && (
@@ -95,6 +218,14 @@ function Formulario({ edicao, aoSalvar, aoFechar }: { edicao: Edicao; aoSalvar: 
   );
 }
 
+const COR_PAPEL: Record<Papel, string> = {
+  owner: "bg-amarelo text-navy",
+  administrador: "bg-navy text-white",
+  supervisor: "bg-azul text-white",
+  operador: "bg-azul-claro text-azul-escuro",
+  visualizador: "bg-ciano-claro text-[#00695f]",
+};
+
 export default function Usuarios() {
   const { perfil: eu } = useAuth();
   const [edicao, setEdicao] = useState<Edicao | null>(null);
@@ -103,6 +234,13 @@ export default function Usuarios() {
     () => supabase.from("perfis").select("*").order("ativo", { ascending: false }).order("nome"),
     [],
   );
+  const lojas = useConsulta<Loja[]>(() => supabase.from("lojas").select("*").order("numero").order("nome"), []);
+  const vinculos = useConsulta<{ usuario_id: string; loja_id: number }[]>(
+    () => supabase.from("visualizador_lojas").select("usuario_id, loja_id"),
+    [],
+  );
+  const lojasDe = (id: string) => (vinculos.dados ?? []).filter((v) => v.usuario_id === id).map((v) => v.loja_id);
+  const nomeDe = new Map((lojas.dados ?? []).map((l) => [l.id, nomeLoja(l.nome, l.numero)]));
 
   async function alternarAtivo(p: Perfil) {
     setMudando(p.id);
@@ -121,7 +259,7 @@ export default function Usuarios() {
     <>
       <Titulo
         titulo="Usuários"
-        descricao="Quem pode entrar no WMS. Senhas ficam criptografadas; ninguém consegue ver, só redefinir."
+        descricao="Equipe da PRODIGY e visualizadores. Senhas ficam criptografadas; ninguém consegue ver, só redefinir. Usuários das lojas ficam em Lojas MINISO."
         acoes={
           <Botao icone={<UserPlus className="size-4" />} onClick={() => setEdicao({ modo: "novo" })}>
             Novo usuário
@@ -159,10 +297,15 @@ export default function Usuarios() {
                       <td className="px-3 py-3">
                         {!p.ativo ? (
                           <Selo className="bg-navy/8 text-suave">Desativado</Selo>
-                        ) : p.papel === "supervisor" ? (
-                          <Selo className="bg-navy text-white">Supervisor</Selo>
                         ) : (
-                          <Selo className="bg-azul-claro text-azul-escuro">Operador</Selo>
+                          <Selo className={COR_PAPEL[p.papel]}>{ROTULO_PAPEL[p.papel]}</Selo>
+                        )}
+                        {p.papel === "visualizador" && p.escopo_visualizador && (
+                          <span className="mt-1 block max-w-56 truncate text-xs text-suave" title={lojasDe(p.id).map((id) => nomeDe.get(id)).join(", ")}>
+                            {p.escopo_visualizador === "global_miniso"
+                              ? "Global MINISO"
+                              : `${lojasDe(p.id).length} ${lojasDe(p.id).length === 1 ? "loja" : "lojas"}: ${lojasDe(p.id).map((id) => nomeDe.get(id)).join(", ") || "nenhuma"}`}
+                          </span>
                         )}
                       </td>
                       <td className="px-3 py-3">
@@ -179,6 +322,10 @@ export default function Usuarios() {
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex justify-end gap-1">
+                          {!podeGerir(eu, p) ? (
+                            <span className="px-2 text-xs text-suave">{p.papel === "owner" ? "Conta Owner" : "Só o Owner altera"}</span>
+                          ) : (
+                          <>
                           <Botao
                             variante="fantasma"
                             tamanho="sm"
@@ -204,6 +351,8 @@ export default function Usuarios() {
                             >
                               {p.ativo ? "Desativar" : "Reativar"}
                             </Botao>
+                          )}
+                          </>
                           )}
                         </div>
                       </td>
@@ -231,10 +380,14 @@ export default function Usuarios() {
           <Formulario
             key={edicao.modo + (edicao.modo !== "novo" ? edicao.perfil.id : "")}
             edicao={edicao}
+            eu={eu}
+            lojas={lojas.dados ?? []}
+            vinculos={edicao.modo !== "novo" ? lojasDe(edicao.perfil.id) : []}
             aoFechar={() => setEdicao(null)}
             aoSalvar={() => {
               setEdicao(null);
               recarregar();
+              vinculos.recarregar();
             }}
           />
         )}

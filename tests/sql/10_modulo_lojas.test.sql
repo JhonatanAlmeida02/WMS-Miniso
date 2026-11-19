@@ -271,15 +271,14 @@ set role authenticated;
 select teste.como('00000000-0000-0000-0000-0000000000aa');
 select teste.igual((select count(*) from public.pedidos), 3::bigint, 'supervisor vê todos os pedidos');
 select teste.igual((select count(*) from public.perfis), 3::bigint, 'telas atuais: supervisor vê só a equipe interna nos perfis');
-select teste.igual((select count(*) from public.usuarios_das_lojas()), 3::bigint, 'área Lojas MINISO: supervisor lista os usuários das lojas');
 select teste.igual((select finalizado_por_nome from public.v_expedicoes where id = :exp1), 'Admin Loja 01', 'supervisor vê quem finalizou o recebimento');
 select teste.como('00000000-0000-0000-0000-0000000000bb');
 select teste.igual((select count(*) from public.perfis where loja_id is not null), 0::bigint, 'operador do CD não vê usuários de loja');
-select teste.deve_falhar('select * from public.usuarios_das_lojas()', 'apenas supervisores', 'operador não lista usuários das lojas');
+select teste.deve_falhar('select * from public.usuarios_das_lojas()', 'apenas owner ou administrador', 'operador não lista usuários das lojas');
 select teste.como('00000000-0000-0000-0000-000000000002');
 select teste.igual(public.nome_usuario('00000000-0000-0000-0000-000000000001'), null::text, 'loja 02 não descobre nome de usuário da loja 01');
 select teste.igual(public.nome_usuario('00000000-0000-0000-0000-0000000000aa'), 'Supervisor', 'loja vê o nome da equipe PRODIGY nos registros');
-select teste.deve_falhar('select * from public.usuarios_das_lojas()', 'apenas supervisores', 'loja não lista usuários');
+select teste.deve_falhar('select * from public.usuarios_das_lojas()', 'apenas owner ou administrador', 'loja não lista usuários');
 select teste.como('00000000-0000-0000-0000-0000000000aa');
 select public.atribuir_conferentes(format('[{"pedido_id":%s,"conferente_id":"00000000-0000-0000-0000-0000000000cc"}]', :ped2)::jsonb);
 select teste.como('00000000-0000-0000-0000-0000000000cc');
@@ -305,7 +304,7 @@ select teste.igual((select count(*) from public.v_expedicoes), 2::bigint, 'confe
 select teste.como('00000000-0000-0000-0000-0000000000bb');
 select teste.deve_falhar('select * from public.equipe_da_minha_loja()', 'apenas o administrador', 'operador do CD não lista equipe de loja');
 select teste.como('00000000-0000-0000-0000-0000000000aa');
-select teste.igual((select count(*) from public.usuarios_das_lojas() where admin_loja), 3::bigint, 'supervisor vê quem é administrador');
+select teste.deve_falhar('select * from public.usuarios_das_lojas()', 'apenas owner ou administrador', 'acessos das lojas saíram do supervisor (ficam com owner/administrador)');
 
 \echo '--- anônimo não executa nada novo'
 reset role;

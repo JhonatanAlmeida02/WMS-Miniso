@@ -23,5 +23,5 @@ rodar() {
 
 rodar tests/sql/00_stub_supabase.sql
 for m in supabase/migrations/*.sql; do rodar "$m"; done
-rodar tests/sql/10_modulo_lojas.test.sql
+for t in tests/sql/*.test.sql; do rodar "$t"; done
 bash tests/sql/concorrencia.sh "$BANCO"

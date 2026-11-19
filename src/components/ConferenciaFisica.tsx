@@ -43,7 +43,7 @@ export function ConferenciaFisica({ remessa }: { remessa: Remessa }) {
     [remessa.id],
     { tabelas: ["conferencias", "pedidos"] },
   );
-  const usuarios = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").eq("ativo", true).order("nome"), []);
+  const usuarios = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").eq("ativo", true).neq("papel", "visualizador").order("nome"), []);
   const equipe = usuarios.dados ?? [];
   const [salvando, setSalvando] = useState<number | "todos" | null>(null);
 

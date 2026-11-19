@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ArrowRight, CheckCheck, ClipboardCheck, Gauge, LayoutDashboard, LogOut, PackageCheck, ScanBarcode, Timer, Undo2 } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { ehGestor } from "../lib/papeis";
 import { supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { fmtNum, fmtPct } from "../lib/formato";
@@ -116,7 +117,7 @@ export default function InicioOperador() {
             <p className="text-[15px] leading-tight font-semibold">Olá, {primeiroNome}</p>
             <p className="truncate text-xs text-white/65">{remessas.length ? `Remessa ${remessas.join(", ")}` : "Sem remessa ativa para você"}</p>
           </div>
-          {perfil?.papel === "supervisor" && (
+          {ehGestor(perfil) && (
             <Link to="/painel" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/10">
               <LayoutDashboard className="size-4" /> <span className="hidden sm:inline">Painel</span>
             </Link>

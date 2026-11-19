@@ -5,7 +5,7 @@
 //   admin_loja = false -> conferente da loja
 //
 // Quem pode chamar:
-//   * supervisor PRODIGY: qualquer usuário de loja, qualquer loja;
+//   * owner/administrador PRODIGY: qualquer usuário de loja, qualquer loja;
 //   * administrador da loja (ativo, com o acesso da loja ligado): só os
 //     conferentes da PRÓPRIA loja. A loja vem do banco, nunca do pedido.
 //
@@ -62,16 +62,16 @@ Deno.serve(async (req) => {
   const eu = await api("/auth/v1/user", { chave: ANON, token });
   const meuId = (eu.corpo as Record<string, unknown> | null)?.id as string | undefined;
   if (!eu.ok || !meuId) return resposta(401, { erro: "Faça login novamente" });
-  const sup = await api("/rest/v1/rpc/eh_supervisor", { method: "POST", chave: ANON, token, body: "{}" });
-  const supervisor = sup.ok && sup.corpo === (true as unknown);
+  const adm = await api("/rest/v1/rpc/eh_administrador", { method: "POST", chave: ANON, token, body: "{}" });
+  const gestorProdigy = adm.ok && adm.corpo === (true as unknown);
 
-  // Não é supervisor: precisa ser administrador de uma loja com acesso ligado
+  // Não é owner/administrador da PRODIGY: precisa ser administrador de uma loja com acesso ligado
   let minhaLoja: number | null = null;
-  if (!supervisor) {
+  if (!gestorProdigy) {
     const me = await api(`/rest/v1/perfis?select=ativo,loja_id,admin_loja&id=eq.${meuId}`);
     const p = Array.isArray(me.corpo) ? me.corpo[0] : null;
     if (!p || p.ativo !== true || p.admin_loja !== true || p.loja_id == null) {
-      return resposta(403, { erro: "Apenas supervisores ou o administrador da loja" });
+      return resposta(403, { erro: "Apenas Owner, Administrador ou o administrador da loja" });
     }
     const l = await api(`/rest/v1/lojas?select=modulo_loja&id=eq.${p.loja_id}`);
     const loja = Array.isArray(l.corpo) ? l.corpo[0] : null;
