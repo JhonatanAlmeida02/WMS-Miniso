@@ -34,10 +34,13 @@ export function PainelDaLoja({
   rotaPedido,
   voltar,
   visao = "prodigy",
+  exportar: podeExportar = true,
 }: {
   lojaId: number;
   rotaPedido: (id: number) => string;
   voltar?: string;
+  /** Visualizador: exportação bloqueada. */
+  exportar?: boolean;
   /** A loja vê só pedido, conferido e faltante (não o que a PRODIGY separou ou expediu). */
   visao?: Visao;
 }) {
@@ -287,14 +290,16 @@ export function PainelDaLoja({
       <Cartao className="mt-4 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borda px-5 py-3">
           <h2 className="font-semibold">Pedidos da loja</h2>
-          <button
-            type="button"
-            onClick={exportar}
-            disabled={!lista.length}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-azul-escuro hover:underline disabled:opacity-40"
-          >
-            <Download className="size-4" /> Exportar CSV
-          </button>
+          {podeExportar && (
+            <button
+              type="button"
+              onClick={exportar}
+              disabled={!lista.length}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-azul-escuro hover:underline disabled:opacity-40"
+            >
+              <Download className="size-4" /> Exportar CSV
+            </button>
+          )}
         </div>
         {pedidos.carregando && !pedidos.dados ? (
           <Carregando />

@@ -1,4 +1,5 @@
-export type Papel = "supervisor" | "operador";
+export type Papel = "owner" | "administrador" | "supervisor" | "operador" | "visualizador";
+export type EscopoVisualizador = "lojas" | "global_miniso";
 export type StatusRemessa = "pendente" | "ativa" | "concluida";
 export type TipoBip = "entrada" | "ajuste";
 
@@ -15,6 +16,8 @@ export interface Perfil {
   loja_id?: number | null;
   /** Usuário de loja: administrador (cadastra a equipe) ou conferente. */
   admin_loja?: boolean;
+  /** Só visualizador: lojas atribuídas ou toda a rede MINISO. */
+  escopo_visualizador?: EscopoVisualizador | null;
 }
 
 export interface Loja {
@@ -23,6 +26,8 @@ export interface Loja {
   nome: string;
   /** Módulo das lojas habilitado (painel e recebimento). */
   modulo_loja?: boolean;
+  /** Rede da loja (o escopo Global MINISO cobre a rede MINISO). */
+  rede?: string;
 }
 
 export interface Remessa {

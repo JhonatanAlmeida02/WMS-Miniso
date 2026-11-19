@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { ROTULO_PAPEL, ehAdministrador, ehGestor, ehVisualizador } from "../lib/papeis";
 import { supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { nomeLoja } from "../lib/formato";
@@ -48,6 +49,13 @@ const MENU: ItemMenu[] = [
   // Módulo das lojas: área separada, no fim do menu
   { para: "/lojas-miniso", texto: "Lojas MINISO", icone: Truck },
 ];
+
+/** Cadastros (usuários e lojas) só para owner e administrador. */
+function menuInterno(admin: boolean): ItemMenu[] {
+  return admin ? MENU : MENU.filter((i) => i.grupo !== "Cadastros");
+}
+
+const MENU_VISUALIZADOR: ItemMenu[] = [{ para: "/visao", texto: "Visão da rede", icone: LayoutDashboard }];
 
 /** Menu da loja; a Equipe aparece só para o administrador da loja. */
 export function menuLoja(admin: boolean): ItemMenu[] {
@@ -81,11 +89,26 @@ function agrupar(menu: ItemMenu[]) {
 const rotaAtiva = (caminho: string, para: string) => caminho === para || caminho.startsWith(`${para}/`);
 
 /**
- * Exige login (e, se pedido, perfil de supervisor). Usuário de loja só entra
- * nas telas da loja (loja), e a equipe interna não entra nelas. O banco faz a
- * mesma separação; isto aqui só leva cada um para a tela certa.
+ * Exige login e leva cada perfil só às telas dele:
+ *   supervisor   -> owner, administrador ou supervisor
+ *   admin        -> owner ou administrador
+ *   visualizador -> só o visualizador (e ele não entra em nenhuma outra)
+ *   loja         -> usuário de loja (e a equipe interna não entra nelas)
+ * O banco faz a mesma separação; isto aqui só leva cada um para a tela certa.
  */
-export function Protegido({ supervisor, loja, children }: { supervisor?: boolean; loja?: boolean; children: ReactNode }) {
+export function Protegido({
+  supervisor,
+  admin,
+  visualizador,
+  loja,
+  children,
+}: {
+  supervisor?: boolean;
+  admin?: boolean;
+  visualizador?: boolean;
+  loja?: boolean;
+  children: ReactNode;
+}) {
   const { carregando, sessao, perfil } = useAuth();
   const local = useLocation();
   if (carregando) return <Carregando />;
@@ -93,7 +116,11 @@ export function Protegido({ supervisor, loja, children }: { supervisor?: boolean
   const deLoja = perfil.loja_id != null;
   if (deLoja && !loja) return <Navigate to="/loja" replace />;
   if (loja && !deLoja) return <Navigate to="/" replace />;
-  if (supervisor && perfil.papel !== "supervisor") return <Navigate to="/inicio" replace />;
+  const vis = ehVisualizador(perfil);
+  if (vis && !visualizador) return <Navigate to="/visao" replace />;
+  if (visualizador && !vis) return <Navigate to="/" replace />;
+  if (supervisor && !ehGestor(perfil)) return <Navigate to="/inicio" replace />;
+  if (admin && !ehAdministrador(perfil)) return <Navigate to="/painel" replace />;
   return <>{children}</>;
 }
 
@@ -301,13 +328,23 @@ export function LayoutLoja() {
   );
 }
 
+/** Visualizador: só leitura, sem atalho para a separação. */
+export function LayoutVisualizador() {
+  const { perfil } = useAuth();
+  const escopo = perfil?.escopo_visualizador === "global_miniso" ? "Global MINISO" : "Por loja";
+  return <LayoutSupervisor menu={MENU_VISUALIZADOR} papel={`Visualizador · ${escopo}`} atalhoSeparacao={false} />;
+}
+
 export function LayoutSupervisor({
-  menu = MENU,
-  papel = "Supervisor",
+  menu: menuPedido,
+  papel: papelPedido,
   atalhoSeparacao = true,
   identificacao,
   tituloCelular,
 }: { menu?: ItemMenu[]; papel?: string; atalhoSeparacao?: boolean; identificacao?: ReactNode; tituloCelular?: string } = {}) {
+  const { perfil } = useAuth();
+  const menu = menuPedido ?? menuInterno(ehAdministrador(perfil));
+  const papel = papelPedido ?? (perfil ? ROTULO_PAPEL[perfil.papel] : "Supervisor");
   const [menuAberto, setMenuAberto] = useState(false);
   const [recolhido, setRecolhido] = useState(lerRecolhido);
 

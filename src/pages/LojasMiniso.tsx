@@ -3,6 +3,8 @@ import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowRight, Download, KeyRound, Pencil, RotateCcw, Store, Truck, UserPlus } from "lucide-react";
 import { mensagemErro, supabase } from "../lib/supabase";
+import { useAuth } from "../lib/auth";
+import { ehAdministrador } from "../lib/papeis";
 import { useConsulta } from "../lib/useConsulta";
 import { useRemessaEscolhida } from "../lib/useRemessaEscolhida";
 import { novaOperacao, rpcSegura } from "../lib/operacao";
@@ -30,8 +32,11 @@ const ABAS: [Aba, string][] = [
  */
 export default function LojasMiniso() {
   const [params, setParams] = useSearchParams();
+  const { perfil } = useAuth();
+  // Acessos das lojas: só owner e administrador
+  const abas = ehAdministrador(perfil) ? ABAS : ABAS.filter(([k]) => k !== "usuarios");
   // A aba fica no estado: o seletor de remessa reescreve a URL só com ?remessa=
-  const [aba, setAba] = useState<Aba>(() => (ABAS.find(([k]) => k === params.get("aba"))?.[0] ?? "visao") as Aba);
+  const [aba, setAba] = useState<Aba>(() => (abas.find(([k]) => k === params.get("aba"))?.[0] ?? "visao") as Aba);
   const { lista: remessas, escolhida, carregando } = useRemessaEscolhida(true);
   useEffect(() => {
     if (params.get("aba") !== aba && params.get("remessa")) {
@@ -80,7 +85,7 @@ export default function LojasMiniso() {
       />
 
       <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-white p-1 ring-1 ring-borda sm:w-fit" role="tablist" aria-label="Expedição">
-        {ABAS.map(([k, t]) => (
+        {abas.map(([k, t]) => (
           <button
             key={k}
             type="button"
@@ -111,7 +116,7 @@ export default function LojasMiniso() {
         <AbaRecebimentos remessaId={escolhida.id} codigo={escolhida.codigo} />
       ) : aba === "divergencias" ? (
         <AbaDivergencias />
-      ) : aba === "usuarios" ? (
+      ) : aba === "usuarios" && ehAdministrador(perfil) ? (
         <AbaUsuarios />
       ) : (
         <AbaVisao />

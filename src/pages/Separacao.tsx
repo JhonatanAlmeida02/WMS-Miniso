@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { toast } from "sonner";
 import { ArrowLeft, Check, ClipboardCheck, History, ListChecks, LoaderCircle, LogOut, Minus, Plus, ScanBarcode, Undo2, X, Zap } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { ehGestor } from "../lib/papeis";
 import { mensagemErro, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { fmtNum, fmtPct, nomeLoja } from "../lib/formato";
@@ -289,10 +290,10 @@ export default function Separacao() {
       <header className="shrink-0 bg-navy text-white">
         <div className="flex h-14 items-center gap-3 px-3 sm:h-16 sm:px-6">
           <Link
-            to={perfil?.papel === "supervisor" ? "/painel" : "/inicio"}
+            to={ehGestor(perfil) ? "/painel" : "/inicio"}
             className="rounded-lg p-2 hover:bg-white/10"
-            aria-label={perfil?.papel === "supervisor" ? "Voltar ao painel" : "Voltar ao início"}
-            title={perfil?.papel === "supervisor" ? "Voltar ao painel" : "Voltar ao início"}
+            aria-label={ehGestor(perfil) ? "Voltar ao painel" : "Voltar ao início"}
+            title={ehGestor(perfil) ? "Voltar ao painel" : "Voltar ao início"}
           >
             <ArrowLeft className="size-5" />
           </Link>

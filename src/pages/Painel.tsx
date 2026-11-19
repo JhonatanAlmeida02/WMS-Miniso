@@ -1,3 +1,4 @@
+import { ROTULO_PAPEL } from "../lib/papeis";
 import { Link } from "react-router";
 import { ArrowRight, PackagePlus, Radio, ScanBarcode, Store, UserX } from "lucide-react";
 import { supabase } from "../lib/supabase";
@@ -35,7 +36,7 @@ export default function Painel() {
     { tabelas: ["bips", "pedidos", "remessas"] },
   );
   const usuarios = useConsulta<Perfil[]>(
-    () => supabase.from("perfis").select("*").eq("ativo", true).order("nome"),
+    () => supabase.from("perfis").select("*").eq("ativo", true).neq("papel", "visualizador").order("nome"),
     [],
   );
   const bips = useConsulta<Bip[]>(
@@ -158,7 +159,7 @@ export default function Painel() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{u.nome}</p>
                       <p className="text-xs text-suave">
-                        {u.papel === "supervisor" ? "Supervisor" : u.cargo || "Operador"} · visto {tempoRelativo(u.ultima_atividade)}
+                        {u.papel === "operador" ? u.cargo || "Operador" : ROTULO_PAPEL[u.papel]} · visto {tempoRelativo(u.ultima_atividade)}
                       </p>
                     </div>
                     {prog ? (

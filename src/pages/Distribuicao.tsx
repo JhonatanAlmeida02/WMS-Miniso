@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Save, Shuffle, Waypoints } from "lucide-react";
 import { mensagemErro, supabase } from "../lib/supabase";
+import { ROTULO_PAPEL } from "../lib/papeis";
 import { useConsulta } from "../lib/useConsulta";
 import { useRemessaEscolhida } from "../lib/useRemessaEscolhida";
 import { fmtNum, nomeLoja } from "../lib/formato";
@@ -29,7 +30,7 @@ export default function Distribuicao() {
     [escolhida?.id],
     { tabelas: ["pedidos", "bips"], ativo: !!escolhida },
   );
-  const operadores = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").eq("ativo", true).order("nome"), []);
+  const operadores = useConsulta<Perfil[]>(() => supabase.from("perfis").select("*").eq("ativo", true).neq("papel", "visualizador").order("nome"), []);
 
   useEffect(() => {
     setMudancas({});
@@ -285,7 +286,7 @@ export default function Distribuicao() {
                           aria-label={`${o.nome} participa da divisão automática`}
                         />
                         <span className="truncate font-medium">{o.nome}</span>
-                        {o.papel === "supervisor" && <span className="shrink-0 text-xs text-suave">(supervisor)</span>}
+                        {o.papel !== "operador" && <span className="shrink-0 text-xs text-suave">({ROTULO_PAPEL[o.papel].toLowerCase()})</span>}
                       </label>
                       <span className="tabular shrink-0 text-suave">
                         {c ? `${c.pedidos} ped. · ${fmtNum(c.un)} un.` : "—"}

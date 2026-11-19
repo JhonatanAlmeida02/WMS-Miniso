@@ -5,7 +5,8 @@ import { Toaster } from "sonner";
 import "./index.css";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { configurado } from "./lib/supabase";
-import { LayoutLoja, LayoutSupervisor, Protegido } from "./components/Layout";
+import { LayoutLoja, LayoutSupervisor, LayoutVisualizador, Protegido } from "./components/Layout";
+import { telaInicial } from "./lib/papeis";
 import { Carregando } from "./components/ui";
 const Login = lazy(() => import("./pages/Login"));
 const Painel = lazy(() => import("./pages/Painel"));
@@ -29,13 +30,15 @@ const PedidoLojaSupervisor = lazy(() => import("./pages/loja/PedidoLoja").then((
 const Entregas = lazy(() => import("./pages/loja/Entregas"));
 const ConferirRecebimento = lazy(() => import("./pages/loja/ConferirRecebimento"));
 const EquipeLoja = lazy(() => import("./pages/loja/Equipe"));
+const VisaoRede = lazy(() => import("./pages/visao/VisaoRede"));
+const VisaoLoja = lazy(() => import("./pages/visao/VisaoRede").then((m) => ({ default: m.VisaoLoja })));
+const VisaoPedido = lazy(() => import("./pages/visao/VisaoRede").then((m) => ({ default: m.VisaoPedido })));
 
 function Inicio() {
   const { carregando, perfil } = useAuth();
   if (carregando) return <Carregando />;
   if (!perfil) return <Navigate to="/login" replace />;
-  if (perfil.loja_id != null) return <Navigate to="/loja" replace />;
-  return <Navigate to={perfil.papel === "supervisor" ? "/painel" : "/inicio"} replace />;
+  return <Navigate to={telaInicial(perfil)} replace />;
 }
 
 function SemConfiguracao() {
@@ -102,8 +105,21 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/lojas-miniso/loja/:lojaId/pedidos/:id" element={<PedidoLojaSupervisor />} />
               <Route path="/bips" element={<LogBips />} />
               <Route path="/estatisticas" element={<Estatisticas />} />
-              <Route path="/usuarios" element={<Usuarios />} />
-              <Route path="/lojas" element={<Lojas />} />
+              {/* Cadastros: só owner e administrador */}
+              <Route path="/usuarios" element={<Protegido admin><Usuarios /></Protegido>} />
+              <Route path="/lojas" element={<Protegido admin><Lojas /></Protegido>} />
+            </Route>
+            {/* Visualizador: só leitura, no escopo de lojas da conta */}
+            <Route
+              element={
+                <Protegido visualizador>
+                  <LayoutVisualizador />
+                </Protegido>
+              }
+            >
+              <Route path="/visao" element={<VisaoRede />} />
+              <Route path="/visao/loja/:lojaId" element={<VisaoLoja />} />
+              <Route path="/visao/loja/:lojaId/pedidos/:id" element={<VisaoPedido />} />
             </Route>
             {/* Módulo das lojas: só o administrador da loja (operador com loja vinculada) */}
             <Route
