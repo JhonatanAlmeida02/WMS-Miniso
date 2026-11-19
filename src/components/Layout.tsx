@@ -144,7 +144,8 @@ function Navegacao({
           title={recolhido ? texto : undefined}
           className={({ isActive }) =>
             cx(
-              "relative flex h-11 items-center gap-3 rounded-xl text-[15px] whitespace-nowrap transition-colors",
+              "relative flex items-center gap-3 rounded-xl text-[15px] whitespace-nowrap transition-colors",
+              recolhido ? "h-10" : "h-11",
               recolhido ? "justify-center px-0" : "px-3",
               isActive ? "bg-white/10 font-medium text-white" : "text-white/70 hover:bg-white/5 hover:text-white",
             )
@@ -166,7 +167,7 @@ function Navegacao({
         // Sem grupo, com um item só, ou menu recolhido (só ícones): itens soltos
         if (!bloco.grupo || bloco.itens.length === 1 || recolhido) {
           return (
-            <div key={bloco.grupo ?? bloco.itens[0].para} className={cx("flex flex-col gap-1", recolhido && i > 0 && bloco.grupo && "mt-2 border-t border-white/10 pt-2")}>
+            <div key={bloco.grupo ?? bloco.itens[0].para} className={cx("flex flex-col gap-1", recolhido && i > 0 && "mt-1.5 border-t border-white/10 pt-1.5")}>
               {bloco.itens.map(link)}
             </div>
           );
@@ -198,7 +199,7 @@ function Navegacao({
       })}
       {atalhoSeparacao && (
         <>
-      <div className="my-3 h-px bg-white/10" />
+      <div className={cx("h-px bg-white/10", recolhido ? "my-2" : "my-3")} />
       <NavLink
         to="/separacao"
         onClick={aoNavegar}
@@ -327,7 +328,7 @@ export function LayoutSupervisor({
           recolhido ? "w-20 px-3" : "w-64 px-4",
         )}
       >
-        <div className={cx("mb-8 flex h-12 flex-col justify-center", recolhido ? "items-center" : "px-2")}>
+        <div className={cx("flex h-12 flex-col justify-center", recolhido ? "mb-5 items-center" : "mb-8 px-2")}>
           {recolhido ? (
             <Logo variante="negativo" simbolo className="h-8" />
           ) : (
@@ -347,7 +348,7 @@ export function LayoutSupervisor({
         >
           <ChevronLeft className={cx("size-4 transition-transform duration-200", recolhido && "rotate-180")} />
         </button>
-        <div className="flex-1 overflow-x-hidden overflow-y-auto">
+        <div className="flex-1 overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Navegacao recolhido={recolhido} menu={menu} atalhoSeparacao={atalhoSeparacao} />
         </div>
         <Rodape recolhido={recolhido} papel={papel} />
@@ -388,7 +389,7 @@ export function LayoutSupervisor({
                 <X className="size-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <Navegacao aoNavegar={() => setMenuAberto(false)} menu={menu} atalhoSeparacao={atalhoSeparacao} />
             </div>
             <Rodape papel={papel} />
