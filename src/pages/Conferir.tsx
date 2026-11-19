@@ -112,7 +112,7 @@ export default function Conferir() {
   return (
     <div className="flex h-dvh flex-col bg-fundo">
       <header className="shrink-0 bg-navy text-white">
-        <div className="flex h-14 items-center gap-3 px-3 sm:h-16 sm:px-6">
+        <div className="flex h-12 items-center gap-2 px-3 sm:gap-3 sm:px-4">
           {confId ? (
             <button
               type="button"
@@ -130,7 +130,7 @@ export default function Conferir() {
           )}
           <Logo simbolo className="h-7 shrink-0 sm:h-8" />
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] leading-tight font-semibold">Conferência</p>
+            <p className="truncate text-sm leading-tight font-semibold">Conferência</p>
             <p className="truncate text-xs text-white/65">
               {perfil?.nome}
               {escolhida && ` · Remessa ${escolhida.codigo}`}
@@ -464,9 +464,9 @@ function TelaConferencia({
     <>
       {/* Loja que está sendo conferida */}
       <div className="flex shrink-0 items-center gap-3 border-b border-borda bg-white px-3 py-2.5 sm:px-6">
-        <SeloLoja numero={loja.loja_numero} nome={loja.loja_nome} className="size-11 text-lg sm:size-12 sm:text-xl" />
+        <SeloLoja numero={loja.loja_numero} nome={loja.loja_nome} className="size-9 text-base" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-lg leading-tight font-semibold sm:text-xl">{loja.loja_nome}</p>
+          <p className="truncate text-base leading-tight font-semibold">{loja.loja_nome}</p>
           <p className="tabular text-xs text-suave">
             Pedido {loja.pedido_nome} · conferido {fmtNum(totais.conferido)} de {fmtNum(totais.separado)} un. ·{" "}
             {fmtPct(totais.conferido, totais.separado)}
@@ -478,8 +478,8 @@ function TelaConferencia({
             <span className="hidden sm:inline">Conferir de novo</span>
           </Botao>
         ) : (
-          <Botao variante="sucesso" icone={<CheckCheck className="size-4" />} onClick={abrirFinalizacao} disabled={gravando || fechandoCaixa || finalizando}>
-            Fechar última caixa
+          <Botao variante="sucesso" icone={<CheckCheck className="size-4" />} onClick={abrirFinalizacao} title="Fechar última caixa" aria-label="Fechar última caixa" disabled={gravando || fechandoCaixa || finalizando}>
+            <span className="sm:hidden">Finalizar</span><span className="hidden sm:inline">Fechar última caixa</span>
           </Botao>
         )}
       </div>
@@ -539,7 +539,7 @@ function TelaConferencia({
                   enterKeyHint="send"
                   placeholder="Bipe o produto"
                   disabled={fechandoCaixa || finalizando}
-                  className="tabular h-14 w-full rounded-xl border-2 border-azul/30 bg-azul-claro/40 pr-3 pl-13 text-lg font-medium tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:border-azul focus:bg-white focus:outline-none sm:text-xl"
+                  className="tabular h-12 w-full rounded-xl border-2 border-azul/30 bg-azul-claro/40 pr-3 pl-13 text-lg font-medium tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:border-azul focus:bg-white focus:outline-none"
                 />
               </div>
               <ChaveModoRapido
@@ -552,9 +552,9 @@ function TelaConferencia({
             </form>
           </div>
 
-          <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-5">
+          <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)]">
             {/* Resultado do último bip */}
-            <div className="flex flex-[1_0_auto] flex-col">
+            <div className="min-w-0">
               {pendente && !modoRapido ? (
                 <QuantidadeLeitura
                   aviso={pendente.linha ? "Quantas unidades estão na caixa?" : "Este produto não é desta loja"}
@@ -581,7 +581,7 @@ function TelaConferencia({
               ) : ultima ? (
                 <div
                   className={cx(
-                    "flex flex-1 flex-col items-center justify-center gap-2 rounded-3xl px-4 py-[clamp(0.75rem,3vh,2rem)] text-center",
+                    "flex flex-col items-center justify-center gap-2 rounded-2xl px-4 py-4 text-center",
                     ultima.linha.situacao === "fora_do_pedido"
                       ? "bg-erro text-white"
                       : ultima.linha.situacao === "sobra"
@@ -592,7 +592,7 @@ function TelaConferencia({
                   )}
                   aria-live="assertive"
                 >
-                  <p className="text-xs font-semibold tracking-[0.2em] uppercase opacity-80 sm:text-base">
+                  <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
                     {ultima.linha.situacao === "fora_do_pedido"
                       ? "Este produto não é desta loja"
                       : ultima.linha.situacao === "sobra"
@@ -601,21 +601,21 @@ function TelaConferencia({
                           ? "Produto completo"
                           : "Conferindo"}
                   </p>
-                  <p className="line-clamp-2 max-w-3xl text-[length:clamp(1.25rem,min(4vh,6vw),2.5rem)] leading-tight font-semibold">
+                  <p className="line-clamp-2 max-w-3xl text-base sm:text-lg leading-tight font-semibold">
                     {ultima.produto}
                   </p>
-                  <p className="tabular text-[length:clamp(2.5rem,min(10vh,16vw),6rem)] leading-none font-semibold">
+                  <p className="tabular text-4xl leading-none font-semibold">
                     {ultima.linha.qtd_conferida}
                     <span className="text-[0.45em] opacity-70"> / {ultima.linha.qtd_separada}</span>
                   </p>
                   <p className="text-sm opacity-80">conferido / separado{ultima.linha.qtd_pedido ? ` · pedido ${ultima.linha.qtd_pedido}` : ""}</p>
                 </div>
               ) : (
-                <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-3xl bg-white px-4 py-6 text-center ring-1 ring-borda">
-                  <span className="grid size-20 place-items-center rounded-full bg-azul-claro text-azul">
-                    <ScanBarcode className="size-10" aria-hidden />
+                <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-white px-4 py-5 text-center ring-1 ring-borda">
+                  <span className="grid size-12 place-items-center rounded-full bg-azul-claro text-azul">
+                    <ScanBarcode className="size-6" aria-hidden />
                   </span>
-                  <p className="text-2xl font-semibold">Bipe os produtos da caixa</p>
+                  <p className="text-lg font-semibold">Bipe os produtos da caixa</p>
                   <p className="max-w-md text-sm text-suave">
                     Bipe o produto, digite a quantidade e confirme (no <strong>Modo rápido</strong>, cada bip já conta 1). No fim, toque em{" "}
                     <strong>Fechar última caixa</strong> para ver o confronto com a separação.
@@ -635,7 +635,7 @@ function TelaConferencia({
 
             {/* Últimas leituras */}
             <section
-              className="flex min-h-28 flex-[0_1_10rem] flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda sm:flex-[0_1_13rem]"
+              className="flex min-h-24 max-h-40 flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda lg:col-span-2"
               aria-label="Últimas leituras"
             >
               <h2 className="flex shrink-0 items-center gap-2 border-b border-borda px-4 py-2 text-sm font-semibold">

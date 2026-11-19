@@ -228,13 +228,13 @@ export default function ConferirRecebimento() {
   return (
     <div className="flex h-dvh flex-col bg-fundo">
       <header className="shrink-0 bg-navy text-white">
-        <div className="flex h-14 items-center gap-3 px-3 sm:h-16 sm:px-6">
+        <div className="flex h-12 items-center gap-2 px-3 sm:gap-3 sm:px-4">
           <Link to={voltar} className="rounded-lg p-2 hover:bg-white/10" aria-label="Voltar" title="Voltar">
             <ArrowLeft className="size-5" />
           </Link>
           <Logo simbolo className="h-7 shrink-0 sm:h-8" />
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] leading-tight font-semibold">Conferência de recebimento</p>
+            <p className="truncate text-sm leading-tight font-semibold">Conferência de recebimento</p>
             <p className="truncate text-xs text-white/65">
               {entrega ? `Loja ${nomeLoja(entrega.loja_nome, entrega.loja_numero)} · ` : ""}
               {perfil?.nome}
@@ -270,7 +270,7 @@ export default function ConferirRecebimento() {
               {entrega.numero}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-lg leading-tight font-semibold sm:text-xl">
+              <p className="truncate text-base leading-tight font-semibold">
                 Pedido {entrega.pedido_nome} · entrega {entrega.numero}
               </p>
               <p className="tabular text-xs text-suave">
@@ -340,7 +340,7 @@ export default function ConferirRecebimento() {
                       placeholder={avaria ? "Bipe o produto avariado" : "Bipe o produto"}
                       disabled={!online}
                       className={cx(
-                        "tabular h-14 w-full rounded-xl border-2 pr-3 pl-13 text-lg font-medium tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:bg-white focus:outline-none disabled:opacity-60 sm:text-xl",
+                        "tabular h-12 w-full rounded-xl border-2 pr-3 pl-13 text-lg font-medium tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:bg-white focus:outline-none disabled:opacity-60",
                         avaria ? "border-amarelo bg-amarelo-claro focus:border-amarelo" : "border-azul/30 bg-azul-claro/40 focus:border-azul",
                       )}
                     />
@@ -363,7 +363,7 @@ export default function ConferirRecebimento() {
                     aria-label="Avaria: a próxima leitura conta como avariada"
                     title="A próxima leitura conta como avariada"
                     className={cx(
-                      "flex h-14 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold",
+                      "flex h-12 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold",
                       avaria ? "border-amarelo bg-amarelo text-navy" : "border-borda text-suave hover:bg-fundo",
                     )}
                   >
@@ -373,9 +373,9 @@ export default function ConferirRecebimento() {
                 </form>
               </div>
 
-              <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-5">
+              <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)]">
                 {/* Resultado do último bip */}
-                <div className="flex flex-[1_0_auto] flex-col">
+                <div className="min-w-0">
                   {pendente && !modoRapido ? (
                     <QuantidadeLeitura
                       aviso={
@@ -408,7 +408,7 @@ export default function ConferirRecebimento() {
                   ) : ultima ? (
                     <div
                       className={cx(
-                        "flex flex-1 flex-col items-center justify-center gap-2 rounded-3xl px-4 py-[clamp(0.75rem,3vh,2rem)] text-center",
+                        "flex flex-col items-center justify-center gap-2 rounded-2xl px-4 py-4 text-center",
                         ultima.linha.situacao === "inesperado"
                           ? "bg-erro text-white"
                           : ultima.linha.situacao === "sobra" || ultima.avariado
@@ -419,7 +419,7 @@ export default function ConferirRecebimento() {
                       )}
                       aria-live="assertive"
                     >
-                      <p className="text-xs font-semibold tracking-[0.2em] uppercase opacity-80 sm:text-base">
+                      <p className="text-xs font-semibold tracking-wide uppercase opacity-80">
                         {ultima.linha.situacao === "inesperado"
                           ? "Este produto não veio nesta entrega"
                           : ultima.avariado
@@ -430,8 +430,8 @@ export default function ConferirRecebimento() {
                                 ? "Produto completo"
                                 : "Conferindo"}
                       </p>
-                      <p className="line-clamp-2 max-w-3xl text-[length:clamp(1.25rem,min(4vh,6vw),2.5rem)] leading-tight font-semibold">{ultima.produto}</p>
-                      <p className="tabular text-[length:clamp(2.5rem,min(10vh,16vw),6rem)] leading-none font-semibold">
+                      <p className="line-clamp-2 max-w-3xl text-base sm:text-lg leading-tight font-semibold">{ultima.produto}</p>
+                      <p className="tabular text-4xl leading-none font-semibold">
                         {ultima.linha.qtd_recebida}
                         <span className="text-[0.45em] opacity-70"> / {ultima.linha.qtd_expedida}</span>
                       </p>
@@ -441,11 +441,11 @@ export default function ConferirRecebimento() {
                       </p>
                     </div>
                   ) : (
-                    <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-3xl bg-white px-4 py-6 text-center ring-1 ring-borda">
-                      <span className="grid size-20 place-items-center rounded-full bg-azul-claro text-azul">
-                        <ScanBarcode className="size-10" aria-hidden />
+                    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-white px-4 py-5 text-center ring-1 ring-borda">
+                      <span className="grid size-12 place-items-center rounded-full bg-azul-claro text-azul">
+                        <ScanBarcode className="size-6" aria-hidden />
                       </span>
-                      <p className="text-2xl font-semibold">Bipe os produtos que chegaram</p>
+                      <p className="text-lg font-semibold">Bipe os produtos que chegaram</p>
                       <p className="max-w-md text-sm text-suave">
                         Bipe o produto, digite a quantidade e confirme (no <strong>Modo rápido</strong>, cada bip já conta 1). Produto danificado:
                         toque em <strong>Avaria</strong>. No fim, toque em <strong>Finalizar</strong> para ver o confronto com o que saiu do CD.
@@ -456,7 +456,7 @@ export default function ConferirRecebimento() {
 
                 {/* Últimas leituras */}
                 <section
-                  className="flex min-h-28 flex-[0_1_10rem] flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda sm:flex-[0_1_13rem]"
+                  className="flex min-h-24 max-h-64 flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda"
                   aria-label="Últimas leituras"
                 >
                   <h2 className="flex shrink-0 items-center gap-2 border-b border-borda px-4 py-2 text-sm font-semibold">

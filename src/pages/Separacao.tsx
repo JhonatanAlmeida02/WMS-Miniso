@@ -40,9 +40,9 @@ interface Ultimo {
 /** "Falta": o número que importa, grande e no centro. */
 function Falta({ valor }: { valor: number }) {
   return (
-    <div className="rounded-[clamp(1rem,2.5vh,1.75rem)] bg-amarelo px-[clamp(1.75rem,6vw,3.5rem)] py-[clamp(0.4rem,1.4vh,0.9rem)] text-center text-navy">
-      <p className="text-xs font-semibold tracking-[0.2em] text-navy/70 uppercase sm:text-sm">Falta</p>
-      <p className="tabular text-[length:clamp(2.75rem,min(11vh,18vw),6.5rem)] leading-none font-bold">{fmtNum(valor)}</p>
+    <div className="rounded-xl bg-amarelo px-5 py-2 text-center text-navy">
+      <p className="text-xs font-semibold tracking-wide text-navy/70 uppercase">Falta</p>
+      <p className="tabular text-3xl leading-none font-bold">{fmtNum(valor)}</p>
     </div>
   );
 }
@@ -50,9 +50,9 @@ function Falta({ valor }: { valor: number }) {
 /** Pedido / Separado: pequenos e discretos, lado a lado. */
 function NumeroPequeno({ rotulo, valor }: { rotulo: string; valor: number }) {
   return (
-    <div className="min-w-[5.5rem] px-[clamp(0.75rem,2.5vw,1.5rem)] py-[clamp(0.3rem,1vh,0.6rem)] text-center">
+    <div className="min-w-20 px-3 py-2 text-center">
       <p className="text-[11px] font-medium tracking-wide text-white/55 uppercase sm:text-xs">{rotulo}</p>
-      <p className="tabular text-xl leading-tight font-semibold text-white/90 sm:text-2xl">{fmtNum(valor)}</p>
+      <p className="tabular text-lg leading-tight font-semibold text-white/90">{fmtNum(valor)}</p>
     </div>
   );
 }
@@ -288,7 +288,7 @@ export default function Separacao() {
     <div className="flex h-dvh flex-col bg-fundo">
       {/* Topo */}
       <header className="shrink-0 bg-navy text-white">
-        <div className="flex h-14 items-center gap-3 px-3 sm:h-16 sm:px-6">
+        <div className="flex h-12 items-center gap-2 px-3 sm:gap-3 sm:px-4">
           <Link
             to={ehGestor(perfil) ? "/painel" : "/inicio"}
             className="rounded-lg p-2 hover:bg-white/10"
@@ -299,7 +299,7 @@ export default function Separacao() {
           </Link>
           <Logo simbolo className="h-7 shrink-0 sm:h-8" />
           <div className="min-w-0 flex-1">
-            <p className="text-[15px] leading-tight font-semibold">Separação</p>
+            <p className="truncate text-sm leading-tight font-semibold">Separação</p>
             <p className="truncate text-xs text-white/65">
               {perfil?.nome}
               {remessas.length > 0 && ` · Remessa ${remessas.join(", ")}`}
@@ -372,12 +372,12 @@ export default function Separacao() {
               spellCheck={false}
               enterKeyHint="search"
               placeholder="Bipe o produto"
-              className="tabular h-14 w-full rounded-xl border-2 border-azul/30 bg-azul-claro/40 pr-3 pl-13 text-lg font-medium tracking-wide text-navy placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:border-azul focus:bg-white focus:outline-none sm:text-xl"
+              className="tabular h-12 w-full rounded-xl border-2 border-azul/30 bg-azul-claro/40 pr-3 pl-13 text-lg font-medium tracking-wide text-navy placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:border-azul focus:bg-white focus:outline-none"
             />
           </div>
           <label
             className={cx(
-              "flex h-14 shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm select-none",
+              "flex h-12 shrink-0 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm select-none",
               modoRapido ? "border-amarelo bg-amarelo-claro text-navy" : "border-borda text-suave",
             )}
             title="Modo rápido: cada bip já confirma 1 unidade na próxima loja"
@@ -398,13 +398,13 @@ export default function Separacao() {
       </div>
 
       {/* Área principal: só a loja de destino */}
-      <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-5">
-        <div className="flex flex-[1_0_auto] flex-col">
+      <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.75fr)]">
+        <div className="min-w-0">
           {item && !modoRapido ? (
-            <form onSubmit={confirmar} className="flex flex-1 flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-borda">
+            <form onSubmit={confirmar} className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-borda">
               <div
                 className={cx(
-                  "flex flex-1 flex-col items-center justify-center gap-[clamp(0.5rem,2vh,1.25rem)] px-4 py-[clamp(0.75rem,3vh,2rem)] text-center text-white",
+                  "flex flex-col items-center justify-center gap-3 px-4 py-3 text-center text-white",
                   tipo === "ajuste" ? "bg-[#5c3d00]" : "bg-navy",
                 )}
                 aria-live="assertive"
@@ -413,29 +413,31 @@ export default function Separacao() {
                   {tipo === "ajuste" ? "Ajuste na loja" : "Leve para a loja"}
                 </p>
                 {/* Loja: número e nome juntos no verde */}
-                <div className="flex max-w-full items-center gap-[clamp(0.75rem,2vw,1.5rem)] rounded-[clamp(1rem,2.5vh,1.75rem)] bg-ciano px-[clamp(1rem,3vw,2.25rem)] py-[clamp(0.5rem,1.8vh,1.1rem)] text-navy">
-                  <span className="tabular text-[length:clamp(2rem,min(8vh,12vw),5.5rem)] leading-none font-bold">
+                <div className="flex max-w-full items-center gap-3 rounded-xl bg-ciano px-4 py-2 text-navy">
+                  <span className="tabular text-3xl leading-none font-bold">
                     {textoLoja(item.loja_numero, item.loja_nome)}
                   </span>
                   <span className="w-0.5 self-stretch rounded-full bg-navy/20" aria-hidden />
-                  <span className="min-w-0 text-left text-[length:clamp(1.6rem,min(6.5vh,8.5vw),4.5rem)] leading-tight font-semibold break-words">
+                  <span className="min-w-0 text-left text-xl sm:text-2xl leading-tight font-semibold break-words">
                     {item.loja_nome}
                   </span>
                 </div>
 
+                <div className="flex flex-wrap items-center justify-center gap-3">
                 <Falta valor={falta} />
 
                 {/* Pedido e Separado juntos, num grupo à parte, mais discreto */}
-                <div className="mt-[clamp(0.25rem,1.5vh,1rem)] flex items-stretch divide-x divide-white/15 rounded-2xl bg-white/8">
+                <div className="flex items-stretch divide-x divide-white/15 rounded-2xl bg-white/8">
                   <NumeroPequeno rotulo="Pedido" valor={item.qtd_pedido} />
                   <NumeroPequeno rotulo="Separado" valor={item.qtd_separada} />
                 </div>
+                </div>
               </div>
 
-              <div className="shrink-0 space-y-3 p-3 sm:p-5">
+              <div className="shrink-0 space-y-2 p-3">
                 <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
                   <div className="min-w-0">
-                    <p className="truncate text-lg font-semibold sm:text-xl">{item.produto}</p>
+                    <p className="line-clamp-2 text-sm font-semibold sm:text-base">{item.produto}</p>
                     <p className="tabular text-xs text-suave">GTIN {item.gtin}</p>
                   </div>
                   <div className="tabular grid grid-cols-2 gap-x-6 text-sm">
@@ -468,7 +470,7 @@ export default function Separacao() {
                   <button
                     type="button"
                     onClick={() => setQtd(String((Number(qtd) || 0) - 1))}
-                    className="grid w-14 shrink-0 place-items-center rounded-xl border border-borda hover:bg-fundo"
+                    className="grid w-11 shrink-0 place-items-center rounded-xl border border-borda hover:bg-fundo"
                     aria-label="Diminuir"
                   >
                     <Minus className="size-5" />
@@ -488,14 +490,14 @@ export default function Separacao() {
                     autoComplete="off"
                     enterKeyHint="done"
                     className={cx(
-                      "tabular h-14 w-20 min-w-0 shrink-0 rounded-xl border-2 text-center text-2xl font-semibold focus:outline-none sm:w-28",
+                      "tabular h-11 w-20 min-w-0 shrink-0 rounded-xl border-2 text-center text-xl font-semibold focus:outline-none sm:w-28",
                       qtdValida ? "border-borda focus:border-azul" : "border-erro text-erro",
                     )}
                   />
                   <button
                     type="button"
                     onClick={() => setQtd(String((Number(qtd) || 0) + 1))}
-                    className="grid w-14 shrink-0 place-items-center rounded-xl border border-borda hover:bg-fundo"
+                    className="grid w-11 shrink-0 place-items-center rounded-xl border border-borda hover:bg-fundo"
                     aria-label="Aumentar"
                   >
                     <Plus className="size-5" />
@@ -504,11 +506,11 @@ export default function Separacao() {
                     type="submit"
                     disabled={!qtdValida || gravando}
                     className={cx(
-                      "flex h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl text-lg font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                      "flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-colors sm:text-base disabled:cursor-not-allowed disabled:opacity-50",
                       tipo === "ajuste" ? "bg-navy text-white hover:bg-navy-700" : "bg-ciano text-navy hover:bg-[#00b2a3]",
                     )}
                   >
-                    <Check className="size-6" aria-hidden />
+                    <Check className="hidden size-5 shrink-0 sm:block" aria-hidden />
                     {tipo === "ajuste" ? "Confirmar ajuste" : "Confirmar"}
                   </button>
                 </div>
@@ -547,24 +549,24 @@ export default function Separacao() {
             /* Depois do bip: a loja onde o produto foi colocado, em destaque */
             <div
               className={cx(
-                "flex flex-1 flex-col items-center justify-center gap-[clamp(0.5rem,2vh,1.25rem)] rounded-3xl px-4 py-[clamp(0.75rem,3vh,2rem)] text-center",
+                "flex flex-col items-center justify-center gap-3 rounded-2xl px-4 py-4 text-center",
                 ultimo.tipo === "ajuste" ? "bg-amarelo-claro text-navy" : escuro ? "bg-navy text-white" : "bg-white text-navy ring-1 ring-borda",
               )}
               aria-live="polite"
             >
-              <p className={cx("text-xs font-semibold tracking-[0.2em] uppercase sm:text-base", escuro ? "text-amarelo" : "text-ciano-escuro")}>
+              <p className={cx("text-xs font-semibold tracking-wide uppercase", escuro ? "text-amarelo" : "text-ciano-escuro")}>
                 {ultimo.tipo === "ajuste" ? "Ajuste feito" : modoRapido ? "Leve para a loja" : "Registrado"}
               </p>
               <div className="flex max-w-full items-center gap-3 sm:gap-5">
                 <SeloLoja
                   numero={ultimo.lojaNumero}
                   nome={ultimo.lojaNome}
-                  className={cx(escuro ? "size-[clamp(3.5rem,min(13vh,22vw),8rem)] text-[length:clamp(1.75rem,min(6.5vh,11vw),4.5rem)]" : "size-[clamp(3rem,min(9vh,18vw),5rem)] text-[length:clamp(1.5rem,min(4.5vh,9vw),3rem)]")}
+                  className={cx("size-12 text-2xl")}
                 />
                 <p
                   className={cx(
                     "min-w-0 text-left leading-tight font-semibold break-words",
-                    escuro ? "text-[length:clamp(1.75rem,min(7vh,9vw),4.75rem)]" : "text-[length:clamp(1.5rem,min(4.5vh,8vw),2.5rem)]",
+                    "text-xl sm:text-2xl",
                   )}
                 >
                   {ultimo.lojaNome}
@@ -614,11 +616,11 @@ export default function Separacao() {
             </div>
           ) : (
             /* Esperando o primeiro bip */
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded-3xl bg-white px-4 py-6 text-center ring-1 ring-borda">
-              <span className="grid size-20 place-items-center rounded-full bg-azul-claro text-azul sm:size-24">
-                <ScanBarcode className="size-10 sm:size-12" aria-hidden />
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-white px-4 py-5 text-center ring-1 ring-borda">
+              <span className="grid size-12 place-items-center rounded-full bg-azul-claro text-azul">
+                <ScanBarcode className="size-6" aria-hidden />
               </span>
-              <p className="text-2xl font-semibold sm:text-3xl">Bipe o produto</p>
+              <p className="text-lg font-semibold">Bipe o produto</p>
               {pedidos.carregando && !pedidos.dados ? (
                 <p className="text-sm text-suave">Carregando seus pedidos…</p>
               ) : lista.length === 0 ? (
@@ -639,7 +641,7 @@ export default function Separacao() {
         </div>
 
         {/* Últimos bips */}
-        <section className="flex min-h-28 flex-[0_1_10rem] flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda sm:flex-[0_1_13rem] lg:flex-[0_1_15rem]" aria-label="Últimos bips">
+        <section className="flex min-h-24 max-h-96 flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-borda" aria-label="Últimos bips">
           <h2 className="flex shrink-0 items-center gap-2 border-b border-borda px-4 py-2 text-sm font-semibold">
             <History className="size-4 text-azul" aria-hidden /> Últimos bips
           </h2>
