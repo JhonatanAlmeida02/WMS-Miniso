@@ -552,7 +552,7 @@ function TelaConferencia({
             </form>
           </div>
 
-          <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+          <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
             {/* Resultado do último bip */}
             <div className="min-w-0">
               {pendente && !modoRapido ? (
