@@ -9,7 +9,7 @@ import { baixarCsv } from "../../lib/buscarTudo";
 import { fmtData, fmtDataHora, fmtNum, nomeLoja } from "../../lib/formato";
 import type { ItemLoja, Loja, PedidoLoja } from "../../lib/tipos";
 import { AvisoErro, Barra, Campo, Cartao, Carregando, Selecao, Selo, Titulo, Vazio, cx } from "../../components/ui";
-import { EstadoAtualizacao, FILTROS_SITUACAO, Indicador, pctOuSemItens, situacaoPedido, type Visao } from "../../components/loja/comum";
+import { CelulaFaltante, EstadoAtualizacao, FILTROS_SITUACAO, Indicador, pctOuSemItens, situacaoPedido, type Visao } from "../../components/loja/comum";
 
 /** Recarrega a cada 30 s como reserva do tempo real (que não é a fonte da verdade). */
 export function useAtualizacao(dados: unknown, recarregar: () => void, intervalo = 30_000) {
@@ -101,6 +101,17 @@ export function PainelDaLoja({
     return p.remessa_status !== "concluida" || (s !== "recebido" && s !== "divergencia");
   });
   const soma = (k: keyof PedidoLoja) => lista.reduce((s, p) => s + (p[k] as number), 0);
+  // Por produto: o que falta e o que veio a mais não se anulam
+  const porPedido = useMemo(() => {
+    const m = new Map<number, { falta: number; mais: number }>();
+    for (const i of itens.dados ?? []) {
+      const a = m.get(i.pedido_id) ?? { falta: 0, mais: 0 };
+      a.falta += Math.max(0, i.qtd_pedido - i.qtd_recebida);
+      a.mais += Math.max(0, i.qtd_recebida - i.qtd_pedido);
+      m.set(i.pedido_id, a);
+    }
+    return m;
+  }, [itens.dados]);
   const tot = {
     pedido: soma("qtd_pedido"),
     separado: soma("qtd_separada"),
@@ -114,7 +125,8 @@ export function PainelDaLoja({
     conferindo: soma("entregas_em_conferencia"),
     conferidas: soma("entregas_conferidas"),
     divergencia: soma("entregas_com_divergencia"),
-    faltante: lista.reduce((s, p) => s + Math.max(0, p.qtd_pedido - p.qtd_recebida), 0),
+    faltante: lista.reduce((s, p) => s + (porPedido.get(p.pedido_id)?.falta ?? Math.max(0, p.qtd_pedido - p.qtd_recebida)), 0),
+    aMais: lista.reduce((s, p) => s + (porPedido.get(p.pedido_id)?.mais ?? 0), 0),
   };
 
   // Pendências por produto, nos pedidos filtrados
@@ -123,22 +135,24 @@ export function PainelDaLoja({
     const t = produto.trim().toLowerCase();
     const porGtin = new Map<
       string,
-      { gtin: string; produto: string; pedido: number; conferido: number; faltante: number; separar: number; expedir: number; receber: number }
+      { gtin: string; produto: string; pedido: number; conferido: number; faltante: number; mais: number; separar: number; expedir: number; receber: number }
     >();
     for (const i of itens.dados ?? []) {
       if (!ids.has(i.pedido_id)) continue;
       if (t && !i.gtin.includes(t) && !i.produto.toLowerCase().includes(t)) continue;
-      const a = porGtin.get(i.gtin) ?? { gtin: i.gtin, produto: i.produto, pedido: 0, conferido: 0, faltante: 0, separar: 0, expedir: 0, receber: 0 };
+      const a = porGtin.get(i.gtin) ?? { gtin: i.gtin, produto: i.produto, pedido: 0, conferido: 0, faltante: 0, mais: 0, separar: 0, expedir: 0, receber: 0 };
       a.pedido += i.qtd_pedido;
       a.conferido += i.qtd_recebida;
       a.faltante += Math.max(0, i.qtd_pedido - i.qtd_recebida);
+      a.mais += Math.max(0, i.qtd_recebida - i.qtd_pedido);
       a.separar += Math.max(0, i.qtd_pedido - i.qtd_separada);
       a.expedir += Math.max(0, i.qtd_pedido - i.qtd_expedida);
       a.receber += i.qtd_a_receber;
       porGtin.set(i.gtin, a);
     }
     const todosItens = [...porGtin.values()];
-    if (daLoja) return todosItens.filter((x) => x.faltante).sort((a, b) => b.faltante - a.faltante || a.produto.localeCompare(b.produto));
+    if (daLoja)
+      return todosItens.filter((x) => x.faltante || x.mais).sort((a, b) => b.faltante - a.faltante || b.mais - a.mais || a.produto.localeCompare(b.produto));
     return todosItens
       .filter((x) => x.separar || x.expedir || x.receber)
       .sort((a, b) => b.expedir - a.expedir || b.separar - a.separar || a.produto.localeCompare(b.produto));
@@ -147,14 +161,15 @@ export function PainelDaLoja({
   function exportar() {
     if (daLoja) {
       baixarCsv(`pedidos-loja-${loja.dados?.numero ?? lojaId}.csv`, [
-        ["Remessa", "Pedido", "Situação", "Pedido (un.)", "Conferido (un.)", "Faltante (un.)", "Avariado (un.)"],
+        ["Remessa", "Pedido", "Situação", "Pedido (un.)", "Conferido (un.)", "Faltante (un.)", "A mais (un.)", "Avariado (un.)"],
         ...lista.map((p) => [
           p.remessa_codigo,
           p.pedido_nome,
           situacaoPedido(p).texto,
           p.qtd_pedido,
           p.qtd_recebida,
-          Math.max(0, p.qtd_pedido - p.qtd_recebida),
+          porPedido.get(p.pedido_id)?.falta ?? Math.max(0, p.qtd_pedido - p.qtd_recebida),
+          porPedido.get(p.pedido_id)?.mais ?? 0,
           p.qtd_avariada,
         ]),
       ]);
@@ -219,9 +234,9 @@ export function PainelDaLoja({
             destaque="bg-ciano"
           />
           <Indicador rotulo="Faltante" valor={fmtNum(tot.faltante)} detalhe="pedido − conferido" destaque={tot.faltante ? "bg-erro" : "bg-ciano"} />
+          <Indicador rotulo="A mais" valor={fmtNum(tot.aMais)} detalhe="conferido acima do pedido" destaque={tot.aMais ? "bg-amarelo" : "bg-ciano"} />
           <Indicador rotulo="Volumes" valor={`${fmtNum(tot.volRec)}/${fmtNum(tot.volExp)}`} detalhe="conferidos/recebidos" />
-          <Indicador rotulo="Entregas a conferir" valor={fmtNum(tot.aguardando + tot.conferindo)} destaque="bg-amarelo" />
-          <Indicador rotulo="Entregas finalizadas" valor={fmtNum(tot.conferidas + tot.divergencia)} destaque="bg-azul" />
+          <Indicador rotulo="Entregas a conferir" valor={`${fmtNum(tot.aguardando + tot.conferindo)} / ${fmtNum(tot.conferidas + tot.divergencia)}`} detalhe="a conferir / finalizadas" destaque="bg-azul" />
         </div>
       ) : (
         // PRODIGY: separação, conferência do CD e recebimento, em cartões menores
@@ -318,7 +333,7 @@ export function PainelDaLoja({
                 {lista.map((p) => {
                   const s = situacaoPedido(p);
                   if (daLoja) {
-                    const f = Math.max(0, p.qtd_pedido - p.qtd_recebida);
+                    const dif = porPedido.get(p.pedido_id) ?? { falta: Math.max(0, p.qtd_pedido - p.qtd_recebida), mais: 0 };
                     return (
                       <tr key={p.pedido_id} className="hover:bg-fundo/60">
                         <td className="px-5 py-3">
@@ -334,7 +349,7 @@ export function PainelDaLoja({
                         </td>
                         <td className="tabular px-3 py-3 text-right">{fmtNum(p.qtd_pedido)}</td>
                         <td className="tabular px-3 py-3 text-right font-semibold">{fmtNum(p.qtd_recebida)}</td>
-                        <td className={cx("tabular px-3 py-3 text-right font-semibold", f > 0 ? "text-erro" : "text-suave")}>{f ? fmtNum(f) : "—"}</td>
+                        <CelulaFaltante falta={dif.falta} mais={dif.mais} className="px-3 py-3" />
                         <td className="px-5 py-3 text-right">
                           <Link to={rotaPedido(p.pedido_id)} className="inline-flex items-center gap-1 text-sm font-medium whitespace-nowrap text-azul-escuro hover:underline">
                             Ver detalhes <ArrowRight className="size-3.5" />
@@ -392,7 +407,7 @@ export function PainelDaLoja({
           </h2>
           <p className="text-xs text-suave">
             {daLoja
-              ? "Produtos que ainda faltam: pedido − conferido na loja."
+              ? "Produtos que ainda faltam (pedido − conferido) ou que vieram a mais."
               : "Falta separar = pedido − separado. A expedir = pedido − expedido. A receber = expedido e ainda não conferido na loja."}
           </p>
         </div>
@@ -431,7 +446,7 @@ export function PainelDaLoja({
                       <>
                         <td className="tabular px-3 py-2 text-right">{x.pedido}</td>
                         <td className="tabular px-3 py-2 text-right">{x.conferido}</td>
-                        <td className="tabular px-5 py-2 text-right font-semibold text-erro">{x.faltante}</td>
+                        <CelulaFaltante falta={x.faltante} mais={x.mais} className="px-5 py-2" />
                       </>
                     ) : (
                       <>

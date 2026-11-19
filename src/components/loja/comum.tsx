@@ -142,6 +142,21 @@ export type Visao = "loja" | "prodigy";
 export const faltante = (l: Pick<LinhaRecebimento, "qtd_pedido" | "qtd_recebida" | "situacao">) =>
   l.situacao === "inesperado" ? 0 : Math.max(0, l.qtd_pedido - l.qtd_recebida);
 
+/** A mais para a loja: conferido acima do pedido (produto fora do pedido conta inteiro). */
+export const aMais = (l: Pick<LinhaRecebimento, "qtd_pedido" | "qtd_recebida" | "situacao">) =>
+  l.situacao === "inesperado" ? l.qtd_recebida : Math.max(0, l.qtd_recebida - l.qtd_pedido);
+
+/** Célula "Faltante" da loja: falta em vermelho, a mais em amarelo, ou "—". */
+export function CelulaFaltante({ falta, mais, className }: { falta: number; mais: number; className?: string }) {
+  if (!falta && !mais) return <td className={cx("tabular text-right text-suave", className)}>—</td>;
+  return (
+    <td className={cx("tabular text-right whitespace-nowrap", className)}>
+      {falta > 0 && <span className="block font-semibold text-erro">{fmtNum(falta)}</span>}
+      {mais > 0 && <Selo className={cx("bg-amarelo-claro text-[#7a5200]", falta > 0 && "mt-1")}>+{fmtNum(mais)} a mais</Selo>}
+    </td>
+  );
+}
+
 export function ConfrontoRecebimento({ linhas, visao = "prodigy" }: { linhas: LinhaRecebimento[]; visao?: Visao }) {
   if (visao === "loja") return <ConfrontoDaLoja linhas={linhas} />;
   return <ConfrontoCompleto linhas={linhas} />;
@@ -151,24 +166,30 @@ export function ConfrontoRecebimento({ linhas, visao = "prodigy" }: { linhas: Li
 function ConfrontoDaLoja({ linhas }: { linhas: LinhaRecebimento[] }) {
   const [todos, setTodos] = useState(false);
   const c = contarSituacoesRecebimento(linhas);
-  const comPendencia = linhas.filter((l) => faltante(l) > 0 || l.situacao !== "ok");
+  const comPendencia = linhas.filter((l) => faltante(l) > 0 || aMais(l) > 0 || l.situacao !== "ok");
   const visiveis = todos ? linhas : comPendencia;
   const doPedido = linhas.filter((l) => l.situacao !== "inesperado");
   const pedido = doPedido.reduce((s, l) => s + l.qtd_pedido, 0);
   const conferido = doPedido.reduce((s, l) => s + l.qtd_recebida, 0);
   const falta = doPedido.reduce((s, l) => s + faltante(l), 0);
+  const mais = linhas.reduce((s, l) => s + aMais(l), 0);
   const avariado = linhas.reduce((s, l) => s + l.qtd_avariada, 0);
+  const comMais = doPedido.filter((l) => aMais(l) > 0).length;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <div className="rounded-xl bg-fundo px-3 py-2">
           <p className="text-xs opacity-80">Produtos completos</p>
-          <p className="tabular text-2xl font-semibold">{fmtNum(doPedido.filter((l) => faltante(l) === 0).length)}</p>
+          <p className="tabular text-2xl font-semibold">{fmtNum(doPedido.filter((l) => faltante(l) === 0 && aMais(l) === 0).length)}</p>
         </div>
         <div className={cx("rounded-xl px-3 py-2", falta > 0 ? "bg-erro-claro text-erro" : "bg-fundo")}>
           <p className="text-xs opacity-80">Com faltante</p>
           <p className="tabular text-2xl font-semibold">{fmtNum(doPedido.filter((l) => faltante(l) > 0).length)}</p>
+        </div>
+        <div className={cx("rounded-xl px-3 py-2", comMais > 0 ? "bg-amarelo-claro text-[#7a5200]" : "bg-fundo")}>
+          <p className="text-xs opacity-80">A mais</p>
+          <p className="tabular text-2xl font-semibold">{fmtNum(comMais)}</p>
         </div>
         <div className={cx("rounded-xl px-3 py-2", c.avaria > 0 ? ROTULO_SITUACAO_RECEBIMENTO.avaria.classe : "bg-fundo")}>
           <p className="text-xs opacity-80">Com avaria</p>
@@ -188,10 +209,11 @@ function ConfrontoDaLoja({ linhas }: { linhas: LinhaRecebimento[] }) {
           </>
         )}
         {falta > 0 && <strong className="text-erro"> · faltam {fmtNum(falta)}</strong>}
+        {mais > 0 && <strong className="text-[#7a5200]"> · {fmtNum(mais)} a mais</strong>}
       </p>
       {visiveis.length === 0 ? (
-        <Vazio icone={<CheckCheck className="size-8" />} titulo="Nada faltando">
-          Tudo o que foi pedido foi conferido.
+        <Vazio icone={<CheckCheck className="size-8" />} titulo="Tudo certo">
+          Tudo o que foi pedido foi conferido, sem faltar nem sobrar.
         </Vazio>
       ) : (
         <div className="max-h-[50vh] overflow-auto rounded-xl ring-1 ring-borda">
@@ -206,7 +228,6 @@ function ConfrontoDaLoja({ linhas }: { linhas: LinhaRecebimento[] }) {
             </thead>
             <tbody className="divide-y divide-borda">
               {visiveis.map((l) => {
-                const f = faltante(l);
                 return (
                   <tr key={l.gtin}>
                     <td className="px-3 py-2">
@@ -219,7 +240,7 @@ function ConfrontoDaLoja({ linhas }: { linhas: LinhaRecebimento[] }) {
                     </td>
                     <td className="tabular px-2 py-2 text-right text-suave">{l.qtd_pedido || "—"}</td>
                     <td className="tabular px-2 py-2 text-right font-semibold">{l.qtd_recebida}</td>
-                    <td className={cx("tabular px-3 py-2 text-right font-semibold", f > 0 ? "text-erro" : "text-suave")}>{f || "—"}</td>
+                    <CelulaFaltante falta={faltante(l)} mais={aMais(l)} className="px-3 py-2" />
                   </tr>
                 );
               })}
