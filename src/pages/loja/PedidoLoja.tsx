@@ -19,6 +19,7 @@ import {
   podeConferir,
   situacaoPedido,
   type Visao,
+  CelulaFaltante,
 } from "../../components/loja/comum";
 import { useAtualizacao } from "./PainelLoja";
 
@@ -93,6 +94,9 @@ export function DetalhePedidoLoja({
     );
   }
   const s = situacaoPedido(p);
+  // Por produto: o que falta e o que veio a mais não se anulam
+  const faltaItens = (itens.dados ?? []).reduce((t, i) => t + Math.max(0, i.qtd_pedido - i.qtd_recebida), 0);
+  const maisItens = (itens.dados ?? []).reduce((t, i) => t + Math.max(0, i.qtd_recebida - i.qtd_pedido), 0);
 
   return (
     <>
@@ -110,15 +114,11 @@ export function DetalhePedidoLoja({
       </div>
 
       {daLoja ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Indicador rotulo="Pedido" valor={fmtNum(p.qtd_pedido)} detalhe={`${p.itens} produtos`} />
           <Indicador rotulo="Conferido" valor={fmtNum(p.qtd_recebida)} detalhe={p.qtd_avariada ? `${fmtNum(p.qtd_avariada)} avariadas` : "un. conferidas na loja"} destaque="bg-ciano" />
-          <Indicador
-            rotulo="Faltante"
-            valor={fmtNum(Math.max(0, p.qtd_pedido - p.qtd_recebida))}
-            detalhe="pedido − conferido"
-            destaque={p.qtd_pedido > p.qtd_recebida ? "bg-erro" : "bg-ciano"}
-          />
+          <Indicador rotulo="Faltante" valor={fmtNum(faltaItens)} detalhe="pedido − conferido" destaque={faltaItens ? "bg-erro" : "bg-ciano"} />
+          <Indicador rotulo="A mais" valor={fmtNum(maisItens)} detalhe="conferido acima do pedido" destaque={maisItens ? "bg-amarelo" : "bg-ciano"} />
           <Indicador rotulo="Volumes" valor={`${p.volumes_recebidos}/${p.volumes_expedidos}`} detalhe="conferidos/recebidos" />
         </div>
       ) : (
@@ -215,7 +215,6 @@ export function DetalhePedidoLoja({
                 </thead>
                 <tbody className="divide-y divide-borda">
                   {(itens.dados ?? []).map((i) => {
-                    const f = Math.max(0, i.qtd_pedido - i.qtd_recebida);
                     return (
                       <tr key={i.item_id}>
                         <td className="px-5 py-2">
@@ -227,7 +226,7 @@ export function DetalhePedidoLoja({
                         </td>
                         <td className="tabular px-3 py-2 text-right">{i.qtd_pedido}</td>
                         <td className="tabular px-3 py-2 text-right font-semibold">{i.qtd_recebida}</td>
-                        <td className={cx("tabular px-5 py-2 text-right font-semibold", f > 0 ? "text-erro" : "text-suave")}>{f || "—"}</td>
+                        <CelulaFaltante falta={Math.max(0, i.qtd_pedido - i.qtd_recebida)} mais={Math.max(0, i.qtd_recebida - i.qtd_pedido)} className="px-5 py-2" />
                       </tr>
                     );
                   })}
