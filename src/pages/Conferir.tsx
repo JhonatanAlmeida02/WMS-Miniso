@@ -14,6 +14,7 @@ import {
   ScanBarcode,
   Undo2,
 } from "lucide-react";
+import { produtoDaConferencia } from "../lib/produtoConferencia";
 import { aplicarLeituraCaixa, textoVolume, type ItemCaixa } from "../lib/caixaTemporaria";
 import { imprimirEtiquetaCaixa } from "../lib/imprimirEtiquetaCaixa";
 import { useAuth } from "../lib/auth";
@@ -246,6 +247,7 @@ function TelaConferencia({
   const [qtd, setQtd] = useState("1");
   const campoQtd = useRef<HTMLInputElement>(null);
   const [gravando, setGravando] = useState(false);
+  const [produtoBloqueado, setProdutoBloqueado] = useState<string | null>(null);
   const [leituras, setLeituras] = useState<Leitura[]>([]);
   const [confrontar, setConfrontar] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
@@ -299,9 +301,20 @@ function TelaConferencia({
     return { separado, conferido, situacoes: contarSituacoes(l) };
   }, [linhas]);
 
+  function barrarProduto(codigo: string) {
+    setProdutoBloqueado(codigo);
+    setPendente(null);
+    setGtin("");
+    somErro();
+    vibrar([200,80,200]);
+    toast.error("Produto não pertence ao pedido desta loja. Leitura bloqueada.");
+    focar();
+  }
+
   async function bipar(codigo: string, qtd: number): Promise<boolean> {
     const c = codigo.replace(/\s/g, "");
     if (!c || ocupado.current || fechando.current || status !== "em_andamento") return false;
+    if (qtd > 0 && !produtoDaConferencia(linhas ?? [], c)) { barrarProduto(c); return false; }
     if (qtd < 0 && -(caixa.find(i => i.sku === c)?.qtd ?? 0) > qtd) {
       toast.error("Só é possível desfazer itens da caixa aberta.");
       return false;
@@ -343,6 +356,8 @@ function TelaConferencia({
   function lido(codigo: string) {
     const c = codigo.replace(/\s/g, "");
     if (!c || fechando.current || status !== "em_andamento") return;
+    if (!produtoDaConferencia(linhas ?? [], c)) { barrarProduto(c); return; }
+    setProdutoBloqueado(null);
     if (modoRapido) {
       void bipar(c, 1);
       return;
@@ -552,7 +567,8 @@ function TelaConferencia({
             </form>
           </div>
 
-          <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
+          {produtoBloqueado && <div role="alert" className="shrink-0 border-b border-erro/20 bg-erro-claro px-4 py-2 text-sm font-medium text-erro">Produto {produtoBloqueado} fora do pedido desta loja. Leitura bloqueada.</div>}
+          <main className="grid min-h-0 flex-1 content-start items-start gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             {/* Resultado do último bip */}
             <div className="min-w-0">
               {pendente && !modoRapido ? (
@@ -625,12 +641,12 @@ function TelaConferencia({
             </div>
 
             <section className="shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-borda" aria-label={`Caixa ${volume}`}>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borda px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-borda px-3 py-2">
                 <div><h2 className="flex items-center gap-2 font-semibold"><PackageCheck className="size-5 text-azul" />Caixa {volume}</h2><p className="text-xs text-suave">{caixa.length} SKU(s) · {fmtNum(caixa.reduce((s,i) => s+i.qtd,0))} un. · Lista temporária</p></div>
-                <Botao icone={<Printer className="size-4" />} onClick={() => void fecharCaixa()} carregando={fechandoCaixa} disabled={!caixa.length || gravando || finalizando || !!pendente}>Fechar caixa e imprimir</Botao>
+                <Botao tamanho="sm" icone={<Printer className="size-3.5" />} onClick={() => void fecharCaixa()} carregando={fechandoCaixa} disabled={!caixa.length || gravando || finalizando || !!pendente}>Fechar caixa</Botao>
               </div>
               {caixa.length ? <div className="max-h-48 overflow-y-auto"><table className="w-full table-fixed text-xs"><thead className="sticky top-0 bg-fundo text-left text-[10px] uppercase text-suave"><tr><th className="w-2/5 px-2 py-2">SKU</th><th className="w-2/5 px-2 py-2">Descrição</th><th className="w-1/5 px-2 py-2 text-right">Qtd.</th></tr></thead><tbody className="divide-y divide-borda">{caixa.map(i => <tr key={i.sku}><td className="tabular px-2 py-2 text-[11px] break-all">{i.sku}</td><td className="px-2 py-2"><span className="line-clamp-3" title={i.descricao}>{i.descricao}</span></td><td className="tabular px-2 py-2 text-right font-semibold">{fmtNum(i.qtd)}</td></tr>)}</tbody></table></div> : <p className="px-4 py-4 text-sm text-suave">Bipe os produtos para montar esta caixa.</p>}
-              <p className="border-t border-borda px-4 py-2 text-xs text-suave">Ao fechar, a impressão é solicitada e esta lista é descartada. Na última caixa, use “Fechar última caixa”. Não há histórico de etiquetas.</p>
+              <p className="border-t border-borda px-4 py-2 text-xs text-suave">Impressão automática</p>
             </section>
 
             {/* Últimas leituras */}

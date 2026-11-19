@@ -2,6 +2,8 @@
 
 Na conferência do CD (`/conferir`), cada leitura confirmada pelo servidor alimenta a caixa aberta com SKU (GTIN), descrição e quantidade. Repetições do mesmo SKU são somadas. As bipagens normais continuam sendo gravadas pelo fluxo já existente da conferência; não há tabela, chamada extra ou histórico para os itens das caixas.
 
+Produtos fora do pedido atual são barrados antes de abrir a quantidade ou enviar a bipagem, inclusive no modo rápido. O banco repete a validação antes de gravar. Ocorrências anteriores continuam no histórico; estornos negativos permanecem permitidos para corrigir erros antigos.
+
 1. A primeira caixa começa no volume 1.
 2. **Fechar caixa e imprimir** solicita a impressão da lista atual, descarta os itens e as últimas leituras da caixa e abre a próxima caixa vazia.
 3. Na última caixa, use **Fechar última caixa**. Confira o confronto e confirme **Finalizar e imprimir última caixa**. Após o servidor confirmar a finalização, a etiqueta mostra o volume e o total: por exemplo, **50/50**. As anteriores mostram **1**, **2** etc.
@@ -21,4 +23,4 @@ O navegador não confirma saída de papel ou cancelamento do diálogo; por isso 
 
 Referência: https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/silentprintingenabled
 
-Validação automatizada: `node --test tests/caixa-temporaria.test.mjs tests/lojas-ui.test.mjs` e `npm run build`. Impressão física e política do posto devem ser validadas na impressora de destino.
+Validação automatizada: `node --test tests/caixa-temporaria.test.mjs tests/lojas-ui.test.mjs tests/produto-conferencia.test.mjs` e `npm run build`. Impressão física e política do posto devem ser validadas na impressora de destino.
