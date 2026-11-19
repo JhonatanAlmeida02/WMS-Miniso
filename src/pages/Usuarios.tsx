@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { KeyRound, Pencil, UserPlus, Users } from "lucide-react";
+import { KeyRound, Pencil, Trash2, UserPlus, Users } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { chamarUsuarios, supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
@@ -8,7 +8,7 @@ import { situacaoOnline, tempoRelativo } from "../lib/formato";
 import type { EscopoVisualizador, Loja, Papel, Perfil } from "../lib/tipos";
 import { ROTULO_ESCOPO, ROTULO_PAPEL, ehAdministrador, ehOwner, papeisQueConcede } from "../lib/papeis";
 import { nomeLoja } from "../lib/formato";
-import { AvisoErro, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx } from "../components/ui";
+import { AvisoErro, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx, useConfirmacao } from "../components/ui";
 
 type Edicao = { modo: "novo" } | { modo: "editar"; perfil: Perfil } | { modo: "senha"; perfil: Perfil };
 
@@ -242,6 +242,35 @@ export default function Usuarios() {
   const lojasDe = (id: string) => (vinculos.dados ?? []).filter((v) => v.usuario_id === id).map((v) => v.loja_id);
   const nomeDe = new Map((lojas.dados ?? []).map((l) => [l.id, nomeLoja(l.nome, l.numero)]));
 
+  const [confirmar, dialogo] = useConfirmacao();
+
+  async function excluir(p: Perfil) {
+    const ok = await confirmar({
+      titulo: `Excluir ${p.nome}?`,
+      mensagem: (
+        <>
+          O login <strong>{p.login}</strong> deixa de existir e não dá para desfazer. O que a pessoa fez (bips, conferências,
+          expedições) continua registrado, mas sem o nome dela. Para só bloquear o acesso e manter o nome no histórico, use{" "}
+          <strong>Desativar</strong>.
+        </>
+      ),
+      confirmar: "Excluir usuário",
+      perigo: true,
+    });
+    if (!ok) return;
+    setMudando(p.id);
+    try {
+      await chamarUsuarios({ acao: "excluir", id: p.id });
+      toast.success(`${p.nome} excluído`);
+      recarregar();
+      vinculos.recarregar();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setMudando(null);
+    }
+  }
+
   async function alternarAtivo(p: Perfil) {
     setMudando(p.id);
     try {
@@ -352,6 +381,19 @@ export default function Usuarios() {
                               {p.ativo ? "Desativar" : "Reativar"}
                             </Botao>
                           )}
+                          {p.id !== eu?.id && p.papel !== "owner" && (
+                            <Botao
+                              variante="fantasma"
+                              tamanho="sm"
+                              icone={<Trash2 className="size-4" />}
+                              className="text-erro hover:bg-erro-claro"
+                              disabled={mudando === p.id}
+                              onClick={() => excluir(p)}
+                              aria-label={`Excluir ${p.nome}`}
+                            >
+                              Excluir
+                            </Botao>
+                          )}
                           </>
                           )}
                         </div>
@@ -365,6 +407,7 @@ export default function Usuarios() {
         )}
       </Cartao>
 
+      {dialogo}
       <Modal
         aberto={!!edicao}
         aoFechar={() => setEdicao(null)}

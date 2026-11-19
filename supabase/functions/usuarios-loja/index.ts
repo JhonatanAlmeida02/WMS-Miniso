@@ -12,6 +12,7 @@
 // POST { acao: "criar", login, nome, senha, loja_id?, cargo?, admin_loja? }
 // POST { acao: "atualizar", id, nome?, cargo?, loja_id?, admin_loja?, ativo?, senha? }
 //   (só para usuários que já são de loja; para encerrar o acesso, ativo: false)
+// POST { acao: "excluir", id }   apaga o login; o histórico fica, sem o nome da pessoa
 
 const DOMINIO_LOGIN = "usuarios.prodigy-wms.local";
 
@@ -176,6 +177,22 @@ Deno.serve(async (req) => {
       const r = await api(`/rest/v1/perfis?id=eq.${id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(mudancas) });
       if (!r.ok) return resposta(400, { erro: msgErro(r.corpo, "Não foi possível salvar") });
     }
+    return resposta(200, { ok: true });
+  }
+
+  if (corpo.acao === "excluir") {
+    const id = texto(corpo.id);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return resposta(400, { erro: "Usuário não informado" });
+    if (id === meuId) return resposta(400, { erro: "Você não pode excluir o seu próprio usuário" });
+    const alvo = await api(`/rest/v1/perfis?select=id,loja_id,admin_loja&id=eq.${id}`);
+    const linha = Array.isArray(alvo.corpo) ? alvo.corpo[0] : null;
+    if (!linha || linha.loja_id == null) return resposta(404, { erro: "Usuário de loja não encontrado" });
+    if (minhaLoja !== null) {
+      if (Number(linha.loja_id) !== minhaLoja) return resposta(404, { erro: "Usuário de loja não encontrado" });
+      if (linha.admin_loja === true) return resposta(403, { erro: "Só a PRODIGY exclui administradores da loja" });
+    }
+    const r = await api(`/auth/v1/admin/users/${id}`, { method: "DELETE" });
+    if (!r.ok) return resposta(400, { erro: msgErro(r.corpo, "Não foi possível excluir o usuário") });
     return resposta(200, { ok: true });
   }
 

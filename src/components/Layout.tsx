@@ -20,7 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
-import { ROTULO_PAPEL, ehAdministrador, ehGestor, ehVisualizador } from "../lib/papeis";
+import { ROTULO_PAPEL, ehAdministrador, ehGestor, ehVisualizador, telaInicial } from "../lib/papeis";
 import { supabase } from "../lib/supabase";
 import { useConsulta } from "../lib/useConsulta";
 import { nomeLoja } from "../lib/formato";
@@ -94,6 +94,7 @@ const rotaAtiva = (caminho: string, para: string) => caminho === para || caminho
  *   admin        -> owner ou administrador
  *   visualizador -> só o visualizador (e ele não entra em nenhuma outra)
  *   loja         -> usuário de loja (e a equipe interna não entra nelas)
+ *   adminLoja    -> só o administrador da loja (o conferente fica no início dele)
  * O banco faz a mesma separação; isto aqui só leva cada um para a tela certa.
  */
 export function Protegido({
@@ -101,12 +102,14 @@ export function Protegido({
   admin,
   visualizador,
   loja,
+  adminLoja,
   children,
 }: {
   supervisor?: boolean;
   admin?: boolean;
   visualizador?: boolean;
   loja?: boolean;
+  adminLoja?: boolean;
   children: ReactNode;
 }) {
   const { carregando, sessao, perfil } = useAuth();
@@ -114,8 +117,9 @@ export function Protegido({
   if (carregando) return <Carregando />;
   if (!sessao || !perfil) return <Navigate to="/login" replace state={{ de: local.pathname }} />;
   const deLoja = perfil.loja_id != null;
-  if (deLoja && !loja) return <Navigate to="/loja" replace />;
+  if (deLoja && !loja) return <Navigate to={telaInicial(perfil)} replace />;
   if (loja && !deLoja) return <Navigate to="/" replace />;
+  if (adminLoja && !perfil.admin_loja) return <Navigate to="/loja/inicio" replace />;
   const vis = ehVisualizador(perfil);
   if (vis && !visualizador) return <Navigate to="/visao" replace />;
   if (visualizador && !vis) return <Navigate to="/" replace />;

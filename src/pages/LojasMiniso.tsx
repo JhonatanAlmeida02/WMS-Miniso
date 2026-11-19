@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowRight, Download, KeyRound, Pencil, RotateCcw, Store, Truck, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, Download, KeyRound, Pencil, RotateCcw, Store, Trash2, Truck, UserPlus } from "lucide-react";
 import { mensagemErro, supabase } from "../lib/supabase";
 import { useAuth } from "../lib/auth";
 import { ehAdministrador } from "../lib/papeis";
@@ -13,7 +13,7 @@ import { fmtDataHora, fmtNum, nomeLoja, situacaoOnline, tempoRelativo } from "..
 import type { Divergencia, Expedicao as TExpedicao, Loja, PedidoLoja, StatusDivergencia } from "../lib/tipos";
 import { chamarUsuariosLoja, type UsuarioLoja } from "../lib/usuariosLoja";
 import { SeloLoja } from "../components/SeloLoja";
-import { AvisoErro, Barra, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx } from "../components/ui";
+import { AvisoErro, Barra, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx, useConfirmacao } from "../components/ui";
 import { ROTULO_STATUS_DIVERGENCIA, ROTULO_TIPO, SeloRecebimento } from "../components/loja/comum";
 import { ModalConfronto } from "./loja/PedidoLoja";
 
@@ -777,6 +777,7 @@ function AbaUsuarios() {
   const usuarios = useConsulta<UsuarioLoja[]>(() => supabase.rpc("usuarios_das_lojas"), []);
   const [mudando, setMudando] = useState<string | null>(null);
   const [edicao, setEdicao] = useState<EdicaoUsuario | null>(null);
+  const [confirmar, dialogo] = useConfirmacao();
 
   async function alternarLoja(l: Loja) {
     setMudando(`loja-${l.id}`);
@@ -788,6 +789,31 @@ function AbaUsuarios() {
     }
     toast.success(l.modulo_loja ? `Acesso de ${l.nome} desligado` : `Acesso de ${l.nome} habilitado`);
     lojas.recarregar();
+  }
+
+  async function excluirUsuario(u: UsuarioLoja) {
+    const ok = await confirmar({
+      titulo: `Excluir ${u.nome}?`,
+      mensagem: (
+        <>
+          O login <strong>{u.login}</strong> deixa de existir e não dá para desfazer. As conferências que a pessoa fez continuam
+          registradas, mas sem o nome dela. Para só bloquear o acesso e manter o nome no histórico, use <strong>Desativar</strong>.
+        </>
+      ),
+      confirmar: "Excluir usuário",
+      perigo: true,
+    });
+    if (!ok) return;
+    setMudando(u.id);
+    try {
+      await chamarUsuariosLoja({ acao: "excluir", id: u.id });
+      toast.success(`${u.nome} excluído`);
+      usuarios.recarregar();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setMudando(null);
+    }
   }
 
   async function alternarUsuario(u: UsuarioLoja) {
@@ -882,6 +908,17 @@ function AbaUsuarios() {
                             >
                               {u.ativo ? "Desativar" : "Reativar"}
                             </Botao>
+                            <Botao
+                              variante="fantasma"
+                              tamanho="sm"
+                              icone={<Trash2 className="size-4" />}
+                              className="text-erro hover:bg-erro-claro"
+                              disabled={mudando === u.id}
+                              onClick={() => excluirUsuario(u)}
+                              aria-label={`Excluir ${u.nome}`}
+                            >
+                              Excluir
+                            </Botao>
                           </li>
                         );
                       })}
@@ -894,6 +931,7 @@ function AbaUsuarios() {
         )}
       </Cartao>
 
+      {dialogo}
       <Modal
         aberto={!!edicao}
         aoFechar={() => setEdicao(null)}
