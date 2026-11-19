@@ -24,6 +24,7 @@ import { Logo } from "../components/Logo";
 import { SeloLoja } from "../components/SeloLoja";
 import { Confronto, ROTULO_SITUACAO, contarSituacoes } from "../components/Confronto";
 import { Barra, Botao, Carregando, Modal, Selecao, Vazio, cx } from "../components/ui";
+import { ChaveModoRapido, QuantidadeLeitura, qtdValida, useModoRapido } from "../components/QuantidadeLeitura";
 
 interface Leitura {
   id: number;
@@ -225,7 +226,11 @@ function TelaConferencia({
   const [status, setStatus] = useState<StatusConferencia | null>(null);
   const [linhas, setLinhas] = useState<LinhaConfronto[] | null>(null);
   const [gtin, setGtin] = useState("");
-  const [multiplo, setMultiplo] = useState("1");
+  const [modoRapido, setModoRapido] = useModoRapido("wms.conferenciaRapida");
+  // Produto bipado esperando a quantidade (como na separação)
+  const [pendente, setPendente] = useState<{ gtin: string; linha: LinhaConfronto | null } | null>(null);
+  const [qtd, setQtd] = useState("1");
+  const campoQtd = useRef<HTMLInputElement>(null);
   const [gravando, setGravando] = useState(false);
   const [leituras, setLeituras] = useState<Leitura[]>([]);
   const [confrontar, setConfrontar] = useState(false);
@@ -263,9 +268,9 @@ function TelaConferencia({
     return { separado, conferido, situacoes: contarSituacoes(l) };
   }, [linhas]);
 
-  async function bipar(codigo: string, qtd: number) {
+  async function bipar(codigo: string, qtd: number): Promise<boolean> {
     const c = codigo.replace(/\s/g, "");
-    if (!c || ocupado.current || status !== "em_andamento") return;
+    if (!c || ocupado.current || status !== "em_andamento") return false;
     ocupado.current = true;
     setGravando(true);
     setGtin("");
@@ -277,7 +282,7 @@ function TelaConferencia({
       somErro();
       vibrar([80, 60, 80]);
       toast.error(mensagemErro(error));
-      return;
+      return false;
     }
     const linha = (data as LinhaConfronto[])[0];
     setLinhas((ls) => {
@@ -295,9 +300,53 @@ function TelaConferencia({
       somOk();
       vibrar(40);
     }
+    return true;
   }
 
-  const leitor = useLeitor((codigo) => bipar(codigo, Math.max(1, Number(multiplo) || 1)));
+  /** Bipou: no modo rápido conta 1; senão mostra o produto e pede a quantidade. */
+  function lido(codigo: string) {
+    const c = codigo.replace(/\s/g, "");
+    if (!c || status !== "em_andamento") return;
+    if (modoRapido) {
+      void bipar(c, 1);
+      return;
+    }
+    setGtin("");
+    setPendente({ gtin: c, linha: (linhas ?? []).find((l) => l.gtin === c) ?? null });
+    setQtd("1");
+    requestAnimationFrame(() => {
+      campoQtd.current?.focus();
+      campoQtd.current?.select();
+    });
+  }
+
+  async function confirmarQtd() {
+    if (!pendente || gravando) return;
+    leitorQtd.cancelar();
+    // Bipou outro produto com o campo de quantidade em foco: troca de produto
+    if (/^\d{8,}$/.test(qtd.trim())) {
+      lido(qtd.trim());
+      return;
+    }
+    if (!qtdValida(qtd)) {
+      somErro();
+      toast.error("Quantidade deve ser de 1 a 9999");
+      return;
+    }
+    const ok = await bipar(pendente.gtin, Number(qtd));
+    if (ok) {
+      setPendente(null);
+      focar();
+    }
+  }
+
+  function cancelarQtd() {
+    setPendente(null);
+    focar();
+  }
+
+  const leitor = useLeitor(lido);
+  const leitorQtd = useLeitor(lido);
 
   async function desfazer(l: Leitura) {
     await bipar(l.gtin, -l.qtd);
@@ -369,7 +418,7 @@ function TelaConferencia({
               onSubmit={(e: FormEvent) => {
                 e.preventDefault();
                 leitor.cancelar();
-                bipar(gtin, Math.max(1, Number(multiplo) || 1));
+                lido(gtin);
               }}
               className="flex items-center gap-2"
             >
@@ -399,24 +448,44 @@ function TelaConferencia({
                   className="tabular h-14 w-full rounded-xl border-2 border-azul/30 bg-azul-claro/40 pr-3 pl-13 text-lg font-medium tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:border-azul focus:bg-white focus:outline-none sm:text-xl"
                 />
               </div>
-              <label className="flex h-14 shrink-0 items-center gap-1 rounded-xl border border-borda px-2 text-sm text-suave" title="Quantas unidades cada bip conta (ex.: caixa fechada)">
-                <span aria-hidden>×</span>
-                <span className="sr-only">Unidades por bip</span>
-                <input
-                  value={multiplo}
-                  onChange={(e) => setMultiplo(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                  onBlur={() => !Number(multiplo) && setMultiplo("1")}
-                  inputMode="numeric"
-                  className="tabular w-10 bg-transparent text-center text-lg font-semibold text-navy focus:outline-none"
-                />
-              </label>
+              <ChaveModoRapido
+                ligado={modoRapido}
+                aoMudar={(v) => {
+                  setModoRapido(v);
+                  cancelarQtd();
+                }}
+              />
             </form>
           </div>
 
           <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-5">
             {/* Resultado do último bip */}
             <div className="flex flex-[1_0_auto] flex-col">
-              {ultima ? (
+              {pendente && !modoRapido ? (
+                <QuantidadeLeitura
+                  aviso={pendente.linha ? "Quantas unidades estão na caixa?" : "Este produto não é desta loja"}
+                  tom={pendente.linha ? "normal" : "erro"}
+                  produto={pendente.linha?.produto ?? "Produto fora do pedido desta loja"}
+                  gtin={pendente.gtin}
+                  numeros={
+                    pendente.linha
+                      ? [
+                          { rotulo: "Separado", valor: pendente.linha.qtd_separada },
+                          { rotulo: "Conferido", valor: pendente.linha.qtd_conferida },
+                          { rotulo: "Falta", valor: Math.max(0, pendente.linha.qtd_separada - pendente.linha.qtd_conferida) },
+                        ]
+                      : []
+                  }
+                  qtd={qtd}
+                  setQtd={setQtd}
+                  falta={pendente.linha ? pendente.linha.qtd_separada - pendente.linha.qtd_conferida : 0}
+                  campoRef={campoQtd}
+                  aoDigitar={leitorQtd.digitou}
+                  gravando={gravando}
+                  aoConfirmar={confirmarQtd}
+                  aoCancelar={cancelarQtd}
+                />
+              ) : ultima ? (
                 <div
                   className={cx(
                     "flex flex-1 flex-col items-center justify-center gap-2 rounded-3xl px-4 py-[clamp(0.75rem,3vh,2rem)] text-center",
@@ -455,8 +524,8 @@ function TelaConferencia({
                   </span>
                   <p className="text-2xl font-semibold">Bipe os produtos da caixa</p>
                   <p className="max-w-md text-sm text-suave">
-                    Cada bip conta 1 unidade (ou o número ao lado do campo). No fim, toque em <strong>Finalizar</strong> para ver o
-                    confronto com a separação.
+                    Bipe o produto, digite a quantidade e confirme (no <strong>Modo rápido</strong>, cada bip já conta 1). No fim, toque em{" "}
+                    <strong>Finalizar</strong> para ver o confronto com a separação.
                   </p>
                 </div>
               )}
