@@ -12,6 +12,7 @@ import type { Expedicao, LinhaRecebimento, StatusRecebimento } from "../../lib/t
 import { Logo } from "../../components/Logo";
 import { Barra, Botao, Carregando, Modal, Vazio, cx } from "../../components/ui";
 import { ConfrontoRecebimento, ROTULO_SITUACAO_RECEBIMENTO, SeloRecebimento } from "../../components/loja/comum";
+import { ChaveModoRapido, QuantidadeLeitura, qtdValida, useModoRapido } from "../../components/QuantidadeLeitura";
 
 interface Leitura {
   bipId: number;
@@ -42,7 +43,11 @@ export default function ConferirRecebimento() {
   const [linhas, setLinhas] = useState<LinhaRecebimento[] | null>(null);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [gtin, setGtin] = useState("");
-  const [multiplo, setMultiplo] = useState("1");
+  const [modoRapido, setModoRapido] = useModoRapido("wms.recebimentoRapido");
+  // Produto bipado esperando a quantidade (como na separação)
+  const [pendente, setPendente] = useState<{ gtin: string; linha: LinhaRecebimento | null } | null>(null);
+  const [qtd, setQtd] = useState("1");
+  const campoQtd = useRef<HTMLInputElement>(null);
   const [avaria, setAvaria] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [leituras, setLeituras] = useState<Leitura[]>([]);
@@ -94,13 +99,13 @@ export default function ConferirRecebimento() {
     setLinhas((ls) => [linha, ...(ls ?? []).filter((x) => x.gtin !== linha.gtin)]);
   }
 
-  async function bipar(codigo: string, qtd: number) {
+  async function bipar(codigo: string, qtd: number): Promise<boolean> {
     const c = codigo.replace(/\s/g, "");
-    if (!c || ocupado.current || status !== "em_conferencia") return;
+    if (!c || ocupado.current || status !== "em_conferencia") return false;
     if (!online) {
       somErro();
       toast.error("Sem internet: a leitura não foi gravada. Bipe de novo quando a conexão voltar.");
-      return;
+      return false;
     }
     ocupado.current = true;
     setGravando(true);
@@ -121,7 +126,7 @@ export default function ConferirRecebimento() {
       somErro();
       vibrar([80, 60, 80]);
       toast.error(error ? mensagemErro(error) : "Leitura não confirmada. Bipe de novo.");
-      return;
+      return false;
     }
     const { bip_id, ...linha } = data[0];
     aplicar(linha);
@@ -137,9 +142,53 @@ export default function ConferirRecebimento() {
       somOk();
       vibrar(40);
     }
+    return true;
   }
 
-  const leitor = useLeitor((codigo) => bipar(codigo, Math.max(1, Number(multiplo) || 1)));
+  /** Bipou: no modo rápido conta 1; senão mostra o produto e pede a quantidade. */
+  function lido(codigo: string) {
+    const c = codigo.replace(/\s/g, "");
+    if (!c || status !== "em_conferencia") return;
+    if (modoRapido) {
+      void bipar(c, 1);
+      return;
+    }
+    setGtin("");
+    setPendente({ gtin: c, linha: (linhas ?? []).find((l) => l.gtin === c) ?? null });
+    setQtd("1");
+    requestAnimationFrame(() => {
+      campoQtd.current?.focus();
+      campoQtd.current?.select();
+    });
+  }
+
+  async function confirmarQtd() {
+    if (!pendente || gravando) return;
+    leitorQtd.cancelar();
+    // Bipou outro produto com o campo de quantidade em foco: troca de produto
+    if (/^\d{8,}$/.test(qtd.trim())) {
+      lido(qtd.trim());
+      return;
+    }
+    if (!qtdValida(qtd)) {
+      somErro();
+      toast.error("Quantidade deve ser de 1 a 9999");
+      return;
+    }
+    const ok = await bipar(pendente.gtin, Number(qtd));
+    if (ok) {
+      setPendente(null);
+      focar();
+    }
+  }
+
+  function cancelarQtd() {
+    setPendente(null);
+    focar();
+  }
+
+  const leitor = useLeitor(lido);
+  const leitorQtd = useLeitor(lido);
 
   async function desfazer(l: Leitura) {
     if (ocupado.current) return;
@@ -260,7 +309,7 @@ export default function ConferirRecebimento() {
                   onSubmit={(e: FormEvent) => {
                     e.preventDefault();
                     leitor.cancelar();
-                    bipar(gtin, Math.max(1, Number(multiplo) || 1));
+                    lido(gtin);
                   }}
                   className="flex items-center gap-2"
                 >
@@ -294,22 +343,19 @@ export default function ConferirRecebimento() {
                       )}
                     />
                   </div>
-                  <label className="flex h-14 shrink-0 items-center gap-1 rounded-xl border border-borda px-2 text-sm text-suave" title="Quantas unidades cada bip conta (ex.: caixa fechada)">
-                    <span aria-hidden>×</span>
-                    <span className="sr-only">Unidades por bip</span>
-                    <input
-                      value={multiplo}
-                      onChange={(e) => setMultiplo(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                      onBlur={() => !Number(multiplo) && setMultiplo("1")}
-                      inputMode="numeric"
-                      className="tabular w-10 bg-transparent text-center text-lg font-semibold text-navy focus:outline-none"
-                    />
-                  </label>
+                  <ChaveModoRapido
+                    ligado={modoRapido}
+                    aoMudar={(v) => {
+                      setModoRapido(v);
+                      cancelarQtd();
+                    }}
+                  />
                   <button
                     type="button"
                     onClick={() => {
                       setAvaria((a) => !a);
-                      focar();
+                      if (pendente) requestAnimationFrame(() => campoQtd.current?.focus());
+                      else focar();
                     }}
                     aria-pressed={avaria}
                     aria-label="Avaria: a próxima leitura conta como avariada"
@@ -328,7 +374,38 @@ export default function ConferirRecebimento() {
               <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 sm:gap-4 sm:p-5">
                 {/* Resultado do último bip */}
                 <div className="flex flex-[1_0_auto] flex-col">
-                  {ultima ? (
+                  {pendente && !modoRapido ? (
+                    <QuantidadeLeitura
+                      aviso={
+                        !pendente.linha
+                          ? "Este produto não veio nesta entrega"
+                          : avaria
+                            ? "Avaria: quantas unidades danificadas?"
+                            : "Quantas unidades chegaram?"
+                      }
+                      tom={!pendente.linha ? "erro" : avaria ? "aviso" : "normal"}
+                      produto={pendente.linha?.produto ?? "Produto não esperado nesta entrega"}
+                      gtin={pendente.gtin}
+                      numeros={
+                        pendente.linha
+                          ? [
+                              { rotulo: "Expedido", valor: pendente.linha.qtd_expedida },
+                              { rotulo: "Recebido", valor: pendente.linha.qtd_recebida },
+                              { rotulo: "Falta", valor: Math.max(0, pendente.linha.qtd_expedida - pendente.linha.qtd_recebida) },
+                            ]
+                          : []
+                      }
+                      qtd={qtd}
+                      setQtd={setQtd}
+                      falta={pendente.linha ? pendente.linha.qtd_expedida - pendente.linha.qtd_recebida : 0}
+                      campoRef={campoQtd}
+                      aoDigitar={leitorQtd.digitou}
+                      gravando={gravando}
+                      aoConfirmar={confirmarQtd}
+                      aoCancelar={cancelarQtd}
+                      textoConfirmar={avaria ? "Confirmar avaria" : "Confirmar"}
+                    />
+                  ) : ultima ? (
                     <div
                       className={cx(
                         "flex flex-1 flex-col items-center justify-center gap-2 rounded-3xl px-4 py-[clamp(0.75rem,3vh,2rem)] text-center",
@@ -370,8 +447,8 @@ export default function ConferirRecebimento() {
                       </span>
                       <p className="text-2xl font-semibold">Bipe os produtos que chegaram</p>
                       <p className="max-w-md text-sm text-suave">
-                        Cada bip conta 1 unidade (ou o número ao lado do campo). Produto danificado: toque em <strong>Avaria</strong> antes de bipar. No
-                        fim, toque em <strong>Finalizar</strong> para ver o confronto com o que saiu do CD.
+                        Bipe o produto, digite a quantidade e confirme (no <strong>Modo rápido</strong>, cada bip já conta 1). Produto danificado:
+                        toque em <strong>Avaria</strong>. No fim, toque em <strong>Finalizar</strong> para ver o confronto com o que saiu do CD.
                       </p>
                     </div>
                   )}
