@@ -8,10 +8,12 @@ import { ehAdministrador } from "../lib/papeis";
 import { useConsulta } from "../lib/useConsulta";
 import { useRemessaEscolhida } from "../lib/useRemessaEscolhida";
 import { novaOperacao, rpcSegura } from "../lib/operacao";
-import { baixarCsv } from "../lib/buscarTudo";
+import { baixarCsv, buscarTudo } from "../lib/buscarTudo";
 import { fmtDataHora, fmtNum, nomeLoja, situacaoOnline, tempoRelativo } from "../lib/formato";
 import type { Divergencia, Expedicao as TExpedicao, Loja, PedidoLoja, StatusDivergencia } from "../lib/tipos";
 import { chamarUsuariosLoja, type UsuarioLoja } from "../lib/usuariosLoja";
+import { SanfonaLoja, useSanfonas } from "../components/SanfonaLoja";
+import { agruparPorLoja } from "../lib/agruparLojas";
 import { SeloLoja } from "../components/SeloLoja";
 import { AvisoErro, Barra, Botao, Campo, Cartao, Carregando, Modal, Selecao, Selo, Titulo, Vazio, cx, useConfirmacao } from "../components/ui";
 import { ROTULO_STATUS_DIVERGENCIA, ROTULO_TIPO, SeloRecebimento } from "../components/loja/comum";
@@ -485,24 +487,21 @@ function ModalMotivo({
 // ---------------------------------------------------------------------------
 function AbaDivergencias() {
   const [filtro, setFiltro] = useState<StatusDivergencia | "pendentes" | "todas">("pendentes");
+  const sanfonas = useSanfonas();
   const divergencias = useConsulta<Divergencia[]>(
-    () => {
-      let q = supabase.from("v_divergencias").select("*").eq("atual", true).order("criada_em", { ascending: false }).limit(1000);
+    () => buscarTudo<Divergencia>((de, ate) => {
+      let q = supabase.from("v_divergencias").select("*").eq("atual", true).order("criada_em", { ascending: false }).order("id", { ascending: false });
       if (filtro === "pendentes") q = q.neq("status", "resolvida");
       else if (filtro !== "todas") q = q.eq("status", filtro);
-      return q;
-    },
+      return q.range(de, ate);
+    }),
     [filtro],
     { tabelas: ["divergencias"] },
   );
   const [resolver, setResolver] = useState<Divergencia | null>(null);
   const [ocupado, setOcupado] = useState<number | null>(null);
   const lista = divergencias.dados ?? [];
-  const porLoja = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const d of lista) m.set(nomeLoja(d.loja_nome, d.loja_numero), (m.get(nomeLoja(d.loja_nome, d.loja_numero)) ?? 0) + 1);
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [lista]);
+  const porLoja = useMemo(() => agruparPorLoja(lista), [lista]);
 
   async function emAnalise(d: Divergencia) {
     setOcupado(d.id);
@@ -541,7 +540,7 @@ function AbaDivergencias() {
           <div>
             <h2 className="font-semibold">Divergências do recebimento nas lojas</h2>
             <p className="text-xs text-suave">
-              {porLoja.length ? porLoja.map(([l, n]) => `${l}: ${n}`).join(" · ") : "Contagem atual de cada entrega."}
+              {porLoja.length ? `${porLoja.length} loja(s) · ${fmtNum(lista.length)} divergência(s)` : "Contagem atual de cada entrega."}
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -552,6 +551,8 @@ function AbaDivergencias() {
               <option value="resolvida">Resolvidas</option>
               <option value="todas">Todas</option>
             </Selecao>
+            <Botao variante="fantasma" onClick={() => sanfonas.expandir(porLoja.map(g => g.id))} disabled={!porLoja.length}>Expandir todas</Botao>
+            <Botao variante="fantasma" onClick={sanfonas.recolher} disabled={!porLoja.length}>Recolher todas</Botao>
             <Botao variante="secundario" icone={<Download className="size-4" />} onClick={exportar} disabled={!lista.length}>
               CSV
             </Botao>
@@ -562,11 +563,14 @@ function AbaDivergencias() {
         ) : lista.length === 0 ? (
           <Vazio icone={<AlertTriangle className="size-8" />} titulo="Nenhuma divergência aqui" />
         ) : (
-          <div className="overflow-x-auto">
+          <div>{porLoja.map((grupo) => (
+            <SanfonaLoja key={grupo.id} nome={grupo.nome} numero={grupo.numero} aberta={sanfonas.aberta(grupo.id)} alternar={() => sanfonas.alternar(grupo.id)}
+              resumo={<>{fmtNum(grupo.linhas.length)} divergência(s) · {fmtNum(grupo.linhas.reduce((total, d) => total + d.qtd, 0))} un. · {fmtNum(grupo.linhas.filter(d => d.status !== "resolvida").length)} pendente(s)</>}>
+          <div className="overflow-x-auto border-t border-borda">
             <table className="w-full min-w-[1080px] text-sm">
               <thead className="bg-fundo text-left text-xs font-semibold tracking-wide text-suave uppercase">
                 <tr>
-                  <th className="px-5 py-3">Loja</th>
+                  <th className="px-5 py-3">Remessa / pedido</th>
                   <th className="px-3 py-3">Produto</th>
                   <th className="px-3 py-3">Tipo</th>
                   <th className="px-3 py-3 text-right">Exp. / Rec. / Avar.</th>
@@ -576,10 +580,10 @@ function AbaDivergencias() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-borda">
-                {lista.map((d) => (
+                {grupo.linhas.map((d) => (
                   <tr key={d.id}>
                     <td className="px-5 py-2.5">
-                      <span className="font-medium">{nomeLoja(d.loja_nome, d.loja_numero)}</span>
+                      <span className="font-medium">{d.remessa_codigo}</span>
                       <span className="block text-xs text-suave">
                         Pedido {d.pedido_nome} · entrega {d.expedicao_numero}
                       </span>
@@ -614,6 +618,8 @@ function AbaDivergencias() {
               </tbody>
             </table>
           </div>
+            </SanfonaLoja>
+          ))}</div>
         )}
       </Cartao>
       <ModalMotivo
@@ -773,6 +779,7 @@ type EdicaoUsuario = { modo: "novo"; loja?: number } | { modo: "editar"; u: Usua
 
 /** Acesso de cada loja e os administradores das lojas (separados da equipe do CD). */
 function AbaUsuarios() {
+  const sanfonas = useSanfonas();
   const lojas = useConsulta<Loja[]>(() => supabase.from("lojas").select("*").order("numero", { ascending: true, nullsFirst: false }).order("nome"), []);
   const usuarios = useConsulta<UsuarioLoja[]>(() => supabase.rpc("usuarios_das_lojas"), []);
   const [mudando, setMudando] = useState<string | null>(null);
@@ -839,23 +846,26 @@ function AbaUsuarios() {
               Cada pessoa da loja tem o próprio login e vê só a própria loja. Com o acesso desligado, ninguém da loja entra; nada é apagado.
             </p>
           </div>
+          <div className="flex flex-wrap gap-2">
+          <Botao variante="fantasma" onClick={() => sanfonas.expandir((lojas.dados ?? []).map(l => l.id))}>Expandir todas</Botao>
+          <Botao variante="fantasma" onClick={sanfonas.recolher}>Recolher todas</Botao>
           <Botao icone={<UserPlus className="size-4" />} onClick={() => setEdicao({ modo: "novo" })}>
             Novo usuário de loja
           </Botao>
+          </div>
         </div>
         {lojas.erro && <AvisoErro>{lojas.erro}</AvisoErro>}
         {usuarios.erro && <AvisoErro>{usuarios.erro}</AvisoErro>}
         {lojas.carregando && !lojas.dados ? (
           <Carregando />
         ) : (
-          <ul className="divide-y divide-borda">
+          <div>
             {(lojas.dados ?? []).map((l) => {
               const daLoja = (usuarios.dados ?? []).filter((u) => u.loja_id === l.id);
               return (
-                <li key={l.id} className="px-5 py-3">
-                  <div className="flex flex-wrap items-center gap-4">
-                    <SeloLoja numero={l.numero} nome={l.nome} className="size-9 text-sm" />
-                    <p className="min-w-0 flex-1 font-medium">{l.nome}</p>
+                <SanfonaLoja key={l.id} nome={l.nome} numero={l.numero} aberta={sanfonas.aberta(l.id)} alternar={() => sanfonas.alternar(l.id)}
+                  resumo={<>{daLoja.length} usuário(s) · {daLoja.filter(u => u.ativo).length} ativo(s)</>}
+                  acoes={<>
                     <Botao variante="fantasma" tamanho="sm" icone={<UserPlus className="size-4" />} onClick={() => setEdicao({ modo: "novo", loja: l.id })}>
                       Adicionar
                     </Botao>
@@ -869,9 +879,9 @@ function AbaUsuarios() {
                       />
                       {l.modulo_loja ? "Acesso habilitado" : "Acesso desligado"}
                     </label>
-                  </div>
+                  </>}>
                   {daLoja.length > 0 && (
-                    <ul className="mt-2 space-y-1 pl-13">
+                    <ul className="space-y-2 border-t border-borda px-4 py-4 sm:px-5">
                       {daLoja.map((u) => {
                         const s = situacaoOnline(u.ultima_atividade);
                         return (
@@ -924,10 +934,11 @@ function AbaUsuarios() {
                       })}
                     </ul>
                   )}
-                </li>
+                  {daLoja.length === 0 && <p className="border-t border-borda px-5 py-5 text-sm text-suave">Nenhum usuário cadastrado nesta loja. Use Adicionar para criar o primeiro acesso.</p>}
+                </SanfonaLoja>
               );
             })}
-          </ul>
+          </div>
         )}
       </Cartao>
 

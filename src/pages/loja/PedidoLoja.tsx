@@ -96,6 +96,8 @@ export function DetalhePedidoLoja({
   const s = situacaoPedido(p);
   // Por produto: o que falta e o que veio a mais não se anulam
   const faltaItens = (itens.dados ?? []).reduce((t, i) => t + Math.max(0, i.qtd_pedido - i.qtd_recebida), 0);
+  const ocorrenciasAtuais = (divergencias.dados ?? []).filter((d) => d.atual);
+  const pendentes = ocorrenciasAtuais.filter((d) => d.status !== "resolvida");
   const maisItens = (itens.dados ?? []).reduce((t, i) => t + Math.max(0, i.qtd_recebida - i.qtd_pedido), 0);
 
   return (
@@ -128,7 +130,7 @@ export function DetalhePedidoLoja({
           <Barra parte={p.qtd_separada} total={p.qtd_pedido} className="mt-2" />
         </Indicador>
         <Indicador rotulo="Conferido no CD" valor={fmtNum(p.qtd_conferida_cd)} detalhe={p.conferencia_cd_status === "finalizada" ? "conferência finalizada" : p.conferencia_cd_status ? "em conferência" : "ainda não conferido"} />
-        <Indicador rotulo="Expedido" valor={fmtNum(p.qtd_expedida)} detalhe={`${fmtNum(Math.max(0, p.qtd_pedido - p.qtd_expedida))} un. a expedir`} destaque="bg-amarelo" />
+        <Indicador rotulo="Divergências" valor={divergencias.erro ? "—" : fmtNum(ocorrenciasAtuais.length)} detalhe={divergencias.erro ? "Não foi possível carregar" : `${fmtNum(pendentes.length)} pendentes de solução`} destaque={pendentes.length ? "bg-erro" : "bg-ciano"} />
         <Indicador rotulo="Recebido" valor={fmtNum(p.qtd_recebida)} detalhe={p.qtd_avariada ? `${fmtNum(p.qtd_avariada)} avariadas` : `${p.volumes_recebidos}/${p.volumes_expedidos} volumes`} destaque={p.entregas_com_divergencia ? "bg-erro" : "bg-ciano"} />
       </div>
       )}
@@ -239,11 +241,10 @@ export function DetalhePedidoLoja({
                   <th className="px-5 py-2">Produto</th>
                   <th className="px-2 py-2 text-right">Pedido</th>
                   <th className="px-2 py-2 text-right">Separado</th>
-                  <th className="px-2 py-2 text-right">Expedido</th>
                   <th className="px-2 py-2 text-right">Recebido</th>
                   <th className="px-2 py-2 text-right">Avariado</th>
                   <th className="px-2 py-2 text-right">Falta separar</th>
-                  <th className="px-2 py-2 text-right">A expedir</th>
+                  <th className="px-2 py-2 text-right">Divergências</th>
                   <th className="px-5 py-2 text-right">A receber</th>
                 </tr>
               </thead>
@@ -256,11 +257,10 @@ export function DetalhePedidoLoja({
                     </td>
                     <td className="tabular px-2 py-2 text-right">{i.qtd_pedido}</td>
                     <td className="tabular px-2 py-2 text-right">{i.qtd_separada}</td>
-                    <td className="tabular px-2 py-2 text-right">{i.qtd_expedida}</td>
                     <td className="tabular px-2 py-2 text-right font-semibold">{i.qtd_recebida}</td>
                     <td className={cx("tabular px-2 py-2 text-right", i.qtd_avariada > 0 && "font-semibold text-[#7a5200]")}>{i.qtd_avariada || "—"}</td>
                     <td className="tabular px-2 py-2 text-right">{Math.max(0, i.qtd_pedido - i.qtd_separada) || "—"}</td>
-                    <td className="tabular px-2 py-2 text-right">{Math.max(0, i.qtd_pedido - i.qtd_expedida) || "—"}</td>
+                    <td className="px-2 py-2 text-right text-xs">{divergencias.erro ? "Indisponível" : ocorrenciasAtuais.filter((d) => d.gtin === i.gtin).map((d) => `${ROTULO_TIPO[d.tipo]}: ${fmtNum(d.qtd)}`).join(" · ") || "—"}</td>
                     <td className="tabular px-5 py-2 text-right">{i.qtd_a_receber || "—"}</td>
                   </tr>
                 ))}
