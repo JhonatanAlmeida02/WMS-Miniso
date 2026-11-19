@@ -391,7 +391,6 @@ export default function ConferirRecebimento() {
                           ? [
                               { rotulo: "Expedido", valor: pendente.linha.qtd_expedida },
                               { rotulo: "Recebido", valor: pendente.linha.qtd_recebida },
-                              { rotulo: "Falta", valor: Math.max(0, pendente.linha.qtd_expedida - pendente.linha.qtd_recebida) },
                             ]
                           : []
                       }
@@ -403,7 +402,6 @@ export default function ConferirRecebimento() {
                       gravando={gravando}
                       aoConfirmar={confirmarQtd}
                       aoCancelar={cancelarQtd}
-                      textoConfirmar={avaria ? "Confirmar avaria" : "Confirmar"}
                     />
                   ) : ultima ? (
                     <div
