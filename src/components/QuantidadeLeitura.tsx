@@ -87,22 +87,37 @@ export function QuantidadeLeitura({
       }}
       className="flex flex-1 flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-borda"
     >
+      {/* Mesmo cartão da separação: destaque em verde, Falta grande em amarelo,
+          números menores lado a lado. Avaria no tom do "Ajuste". */}
       <div
         className={cx(
-          "flex flex-1 flex-col items-center justify-center gap-[clamp(0.5rem,2vh,1.25rem)] px-4 py-[clamp(0.75rem,3vh,2rem)] text-center",
-          tom === "erro" ? "bg-erro text-white" : tom === "aviso" ? "bg-amarelo text-navy" : "bg-navy text-white",
+          "flex flex-1 flex-col items-center justify-center gap-[clamp(0.5rem,2vh,1.25rem)] px-4 py-[clamp(0.75rem,3vh,2rem)] text-center text-white",
+          tom === "erro" ? "bg-erro" : tom === "aviso" ? "bg-[#5c3d00]" : "bg-navy",
         )}
         aria-live="assertive"
       >
-        <p className={cx("text-xs font-semibold tracking-[0.2em] uppercase sm:text-base", tom === "normal" ? "text-amarelo" : "opacity-80")}>{aviso}</p>
-        <p className="line-clamp-2 max-w-3xl text-[length:clamp(1.25rem,min(4vh,6vw),2.5rem)] leading-tight font-semibold">{produto}</p>
-        <p className="tabular text-sm opacity-80">GTIN {gtin}</p>
+        <p className={cx("text-xs font-semibold tracking-[0.2em] uppercase sm:text-base", tom === "erro" ? "text-white" : "text-amarelo")}>{aviso}</p>
+        <div
+          className={cx(
+            "max-w-full rounded-[clamp(1rem,2.5vh,1.75rem)] px-[clamp(1rem,3vw,2.25rem)] py-[clamp(0.5rem,1.8vh,1.1rem)]",
+            tom === "erro" ? "bg-white text-erro" : "bg-ciano text-navy",
+          )}
+        >
+          <p className="line-clamp-2 text-[length:clamp(1.4rem,min(5vh,7vw),3.25rem)] leading-tight font-semibold">{produto}</p>
+          <p className="tabular mt-1 text-xs font-medium opacity-70 sm:text-sm">GTIN {gtin}</p>
+        </div>
         {numeros.length > 0 && (
-          <div className={cx("flex items-stretch divide-x rounded-2xl", tom === "aviso" ? "divide-navy/15 bg-navy/8" : "divide-white/15 bg-white/8")}>
+          <div className="rounded-[clamp(1rem,2.5vh,1.75rem)] bg-amarelo px-[clamp(1.75rem,6vw,3.5rem)] py-[clamp(0.4rem,1.4vh,0.9rem)] text-center text-navy">
+            <p className="text-xs font-semibold tracking-[0.2em] text-navy/70 uppercase sm:text-sm">Falta</p>
+            <p className="tabular text-[length:clamp(2.75rem,min(11vh,18vw),6.5rem)] leading-none font-bold">{Math.max(0, falta)}</p>
+          </div>
+        )}
+        {numeros.length > 0 && (
+          <div className="mt-[clamp(0.25rem,1.5vh,1rem)] flex items-stretch divide-x divide-white/15 rounded-2xl bg-white/8">
             {numeros.map((n) => (
-              <div key={n.rotulo} className="px-[clamp(0.75rem,3vw,1.75rem)] py-2">
-                <p className="text-xs font-medium tracking-wide uppercase opacity-75">{n.rotulo}</p>
-                <p className="tabular text-[length:clamp(1.5rem,min(5vh,7vw),2.75rem)] leading-tight font-semibold">{n.valor}</p>
+              <div key={n.rotulo} className="min-w-[5.5rem] px-[clamp(0.75rem,2.5vw,1.5rem)] py-[clamp(0.3rem,1vh,0.6rem)] text-center">
+                <p className="text-[11px] font-medium tracking-wide text-white/55 uppercase sm:text-xs">{n.rotulo}</p>
+                <p className="tabular text-xl leading-tight font-semibold text-white/90 sm:text-2xl">{n.valor}</p>
               </div>
             ))}
           </div>

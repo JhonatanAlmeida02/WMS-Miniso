@@ -472,7 +472,6 @@ function TelaConferencia({
                       ? [
                           { rotulo: "Separado", valor: pendente.linha.qtd_separada },
                           { rotulo: "Conferido", valor: pendente.linha.qtd_conferida },
-                          { rotulo: "Falta", valor: Math.max(0, pendente.linha.qtd_separada - pendente.linha.qtd_conferida) },
                         ]
                       : []
                   }
