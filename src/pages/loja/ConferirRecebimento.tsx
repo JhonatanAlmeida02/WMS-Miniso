@@ -295,7 +295,7 @@ export default function ConferirRecebimento() {
                     {entrega.finalizado_por_nome && ` por ${entrega.finalizado_por_nome}`}
                   </span>
                 </div>
-                <ConfrontoRecebimento linhas={linhas} />
+                <ConfrontoRecebimento linhas={linhas} visao="loja" />
                 <p className="text-sm text-suave">Para contar de novo, peça à PRODIGY para reabrir este recebimento.</p>
                 <Link to="/loja/entregas" className="inline-flex font-medium text-azul-escuro hover:underline">
                   Voltar para as entregas
@@ -504,7 +504,7 @@ export default function ConferirRecebimento() {
             titulo={`Confronto · entrega ${entrega.numero}`}
             largura="max-w-3xl"
           >
-            <ConfrontoRecebimento linhas={linhas} />
+            <ConfrontoRecebimento linhas={linhas} visao="loja" />
             <div className="mt-5 flex flex-wrap justify-end gap-2">
               <Botao
                 variante="secundario"

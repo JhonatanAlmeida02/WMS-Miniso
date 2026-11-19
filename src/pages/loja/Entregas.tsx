@@ -5,7 +5,7 @@ import { useAuth } from "../../lib/auth";
 import { supabase } from "../../lib/supabase";
 import { useConsulta } from "../../lib/useConsulta";
 import { useConexao } from "../../lib/operacao";
-import { fmtDataHora, fmtNum } from "../../lib/formato";
+import { fmtDataHora } from "../../lib/formato";
 import type { Expedicao, StatusRecebimento } from "../../lib/tipos";
 import { AvisoErro, Cartao, Carregando, Titulo, Vazio, cx } from "../../components/ui";
 import { EstadoAtualizacao, ROTULO_RECEBIMENTO, SeloRecebimento, podeConferir } from "../../components/loja/comum";
@@ -97,7 +97,7 @@ export default function Entregas() {
                       Pedido {e.pedido_nome} · entrega {e.numero}
                     </span>
                     <span className="tabular block text-xs text-suave">
-                      Remessa {e.remessa_codigo} · {e.volumes} vol. · {fmtNum(e.qtd_expedida)} un. · {fmtDataHora(e.expedida_em)}
+                      Remessa {e.remessa_codigo} · {e.volumes} vol. · {e.produtos} {e.produtos === 1 ? "produto" : "produtos"} · {fmtDataHora(e.expedida_em)}
                     </span>
                     <span className="mt-1 block">
                       <SeloRecebimento status={e.recebimento_status} />
@@ -109,7 +109,7 @@ export default function Entregas() {
           })}
         </ul>
       )}
-      <ModalConfronto entrega={confronto} aoFechar={() => setConfronto(null)} />
+      <ModalConfronto entrega={confronto} aoFechar={() => setConfronto(null)} visao="loja" />
     </>
   );
 }

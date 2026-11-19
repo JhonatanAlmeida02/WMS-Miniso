@@ -27,10 +27,10 @@ export function Indicador({
   children?: ReactNode;
 }) {
   return (
-    <Cartao className="relative overflow-hidden p-5">
+    <Cartao className="relative overflow-hidden px-4 py-3">
       <span className={cx("absolute inset-y-0 left-0 w-1", destaque ?? "bg-azul")} aria-hidden />
-      <p className="text-sm text-suave">{rotulo}</p>
-      <p className="tabular mt-1 text-3xl font-semibold tracking-tight">{valor}</p>
+      <p className="text-xs text-suave">{rotulo}</p>
+      <p className="tabular mt-0.5 text-2xl font-semibold tracking-tight">{valor}</p>
       {detalhe && <p className="mt-1 text-xs text-suave">{detalhe}</p>}
       {children}
     </Cartao>
@@ -135,7 +135,110 @@ export function contarSituacoesRecebimento(linhas: LinhaRecebimento[]) {
 }
 
 /** Confronto expedido × recebido (íntegro + avariado), no padrão do Confronto do CD. */
-export function ConfrontoRecebimento({ linhas }: { linhas: LinhaRecebimento[] }) {
+/** Quem olha: a loja vê só pedido, conferido e faltante; a PRODIGY vê tudo. */
+export type Visao = "loja" | "prodigy";
+
+/** Faltante para a loja: pedido menos o que ela conferiu (produto do pedido). */
+export const faltante = (l: Pick<LinhaRecebimento, "qtd_pedido" | "qtd_recebida" | "situacao">) =>
+  l.situacao === "inesperado" ? 0 : Math.max(0, l.qtd_pedido - l.qtd_recebida);
+
+export function ConfrontoRecebimento({ linhas, visao = "prodigy" }: { linhas: LinhaRecebimento[]; visao?: Visao }) {
+  if (visao === "loja") return <ConfrontoDaLoja linhas={linhas} />;
+  return <ConfrontoCompleto linhas={linhas} />;
+}
+
+/** Visão da loja: Pedido, Conferido e Faltante (sem o que a PRODIGY separou ou expediu). */
+function ConfrontoDaLoja({ linhas }: { linhas: LinhaRecebimento[] }) {
+  const [todos, setTodos] = useState(false);
+  const c = contarSituacoesRecebimento(linhas);
+  const comPendencia = linhas.filter((l) => faltante(l) > 0 || l.situacao !== "ok");
+  const visiveis = todos ? linhas : comPendencia;
+  const doPedido = linhas.filter((l) => l.situacao !== "inesperado");
+  const pedido = doPedido.reduce((s, l) => s + l.qtd_pedido, 0);
+  const conferido = doPedido.reduce((s, l) => s + l.qtd_recebida, 0);
+  const falta = doPedido.reduce((s, l) => s + faltante(l), 0);
+  const avariado = linhas.reduce((s, l) => s + l.qtd_avariada, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded-xl bg-fundo px-3 py-2">
+          <p className="text-xs opacity-80">Produtos completos</p>
+          <p className="tabular text-2xl font-semibold">{fmtNum(doPedido.filter((l) => faltante(l) === 0).length)}</p>
+        </div>
+        <div className={cx("rounded-xl px-3 py-2", falta > 0 ? "bg-erro-claro text-erro" : "bg-fundo")}>
+          <p className="text-xs opacity-80">Com faltante</p>
+          <p className="tabular text-2xl font-semibold">{fmtNum(doPedido.filter((l) => faltante(l) > 0).length)}</p>
+        </div>
+        <div className={cx("rounded-xl px-3 py-2", c.avaria > 0 ? ROTULO_SITUACAO_RECEBIMENTO.avaria.classe : "bg-fundo")}>
+          <p className="text-xs opacity-80">Com avaria</p>
+          <p className="tabular text-2xl font-semibold">{fmtNum(c.avaria)}</p>
+        </div>
+        <div className={cx("rounded-xl px-3 py-2", c.inesperado > 0 ? ROTULO_SITUACAO_RECEBIMENTO.inesperado.classe : "bg-fundo")}>
+          <p className="text-xs opacity-80">Não esperados</p>
+          <p className="tabular text-2xl font-semibold">{fmtNum(c.inesperado)}</p>
+        </div>
+      </div>
+      <p className="tabular text-sm text-suave">
+        Pedido <strong className="text-navy">{fmtNum(pedido)}</strong> un. · Conferido <strong className="text-navy">{fmtNum(conferido)}</strong> un.
+        {avariado > 0 && (
+          <>
+            {" "}
+            (<strong className="text-[#7a5200]">{fmtNum(avariado)} avariadas</strong>)
+          </>
+        )}
+        {falta > 0 && <strong className="text-erro"> · faltam {fmtNum(falta)}</strong>}
+      </p>
+      {visiveis.length === 0 ? (
+        <Vazio icone={<CheckCheck className="size-8" />} titulo="Nada faltando">
+          Tudo o que foi pedido foi conferido.
+        </Vazio>
+      ) : (
+        <div className="max-h-[50vh] overflow-auto rounded-xl ring-1 ring-borda">
+          <table className="w-full min-w-[480px] text-sm">
+            <thead className="sticky top-0 bg-fundo text-left text-xs font-semibold tracking-wide text-suave uppercase">
+              <tr>
+                <th className="px-3 py-2">Produto</th>
+                <th className="px-2 py-2 text-right">Pedido</th>
+                <th className="px-2 py-2 text-right">Conferido</th>
+                <th className="px-3 py-2 text-right">Faltante</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-borda">
+              {visiveis.map((l) => {
+                const f = faltante(l);
+                return (
+                  <tr key={l.gtin}>
+                    <td className="px-3 py-2">
+                      <span className="line-clamp-2">{l.produto}</span>
+                      <span className="tabular block text-xs text-suave">
+                        {l.gtin}
+                        {l.situacao === "inesperado" && <span className="font-semibold text-erro"> · não veio nesta entrega</span>}
+                        {l.qtd_avariada > 0 && <span className="font-semibold text-[#7a5200]"> · {l.qtd_avariada} avariada(s)</span>}
+                      </span>
+                    </td>
+                    <td className="tabular px-2 py-2 text-right text-suave">{l.qtd_pedido || "—"}</td>
+                    <td className="tabular px-2 py-2 text-right font-semibold">{l.qtd_recebida}</td>
+                    <td className={cx("tabular px-3 py-2 text-right font-semibold", f > 0 ? "text-erro" : "text-suave")}>{f || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {comPendencia.length !== linhas.length && (
+        <label className="flex items-center gap-2 text-sm text-suave">
+          <input type="checkbox" className="size-4 accent-azul" checked={todos} onChange={(e) => setTodos(e.target.checked)} />
+          Mostrar também os {fmtNum(linhas.length - comPendencia.length)} produtos completos
+        </label>
+      )}
+    </div>
+  );
+}
+
+/** Visão da PRODIGY: expedido x recebido, com situação. */
+function ConfrontoCompleto({ linhas }: { linhas: LinhaRecebimento[] }) {
   const [todos, setTodos] = useState(false);
   const c = contarSituacoesRecebimento(linhas);
   const divergentes = linhas.filter((l) => l.situacao !== "ok");
