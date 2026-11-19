@@ -17,7 +17,7 @@ export const ROTULO_ESCOPO: Record<EscopoVisualizador, string> = {
   global_miniso: "Global MINISO",
 };
 
-type P = Pick<Perfil, "papel" | "loja_id"> | null | undefined;
+type P = Pick<Perfil, "papel" | "loja_id" | "admin_loja"> | null | undefined;
 const interno = (p: P) => !!p && p.loja_id == null;
 
 /** Owner, administrador ou supervisor: coordena a operação. */
@@ -30,7 +30,8 @@ export const ehVisualizador = (p: P) => interno(p) && p!.papel === "visualizador
 /** Tela inicial de cada perfil. */
 export function telaInicial(p: P) {
   if (!p) return "/login";
-  if (p.loja_id != null) return "/loja";
+  // Loja: o administrador fica no painel; o conferente vai direto para conferir
+  if (p.loja_id != null) return p.admin_loja ? "/loja" : "/loja/inicio";
   if (ehVisualizador(p)) return "/visao";
   return ehGestor(p) ? "/painel" : "/inicio";
 }

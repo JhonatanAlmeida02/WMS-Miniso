@@ -10,6 +10,7 @@
 //
 // POST { acao: "criar", login, nome, senha, papel, cargo?, escopo?, lojas? }
 // POST { acao: "atualizar", id, nome?, papel?, cargo?, ativo?, senha?, escopo?, lojas? }
+// POST { acao: "excluir", id }   apaga o login; o histórico fica, sem o nome da pessoa
 //   escopo/lojas só para papel "visualizador": escopo "lojas" (com a lista de
 //   ids em lojas) ou "global_miniso". O escopo é sempre explícito.
 
@@ -244,6 +245,22 @@ Deno.serve(async (req) => {
       });
       if (!r.ok) return resposta(400, { erro: msgErro(r.corpo, "Não foi possível atualizar o acesso") });
     }
+    return resposta(200, { ok: true });
+  }
+
+  if (corpo.acao === "excluir") {
+    const id = texto(corpo.id);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return resposta(400, { erro: "Usuário não informado" });
+    if (id === meuId) return resposta(400, { erro: "Você não pode excluir o seu próprio usuário" });
+    const alvoResp = await api(`/rest/v1/perfis?select=papel,loja_id&id=eq.${id}`);
+    const alvo = Array.isArray(alvoResp.corpo) ? alvoResp.corpo[0] : null;
+    if (!alvo || alvo.loja_id != null) return resposta(404, { erro: "Usuário não encontrado" });
+    if (alvo.papel === "owner") return resposta(403, { erro: "A conta Owner não pode ser excluída" });
+    if (alvo.papel === "administrador" && !souOwner) return resposta(403, { erro: "Só o Owner exclui administradores" });
+    // Apagar o login apaga o perfil junto; os registros (bips, conferências,
+    // expedições) continuam, só sem o nome de quem fez.
+    const r = await api(`/auth/v1/admin/users/${id}`, { method: "DELETE" });
+    if (!r.ok) return resposta(400, { erro: msgErro(r.corpo, "Não foi possível excluir o usuário") });
     return resposta(200, { ok: true });
   }
 

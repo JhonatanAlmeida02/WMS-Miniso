@@ -36,6 +36,8 @@ export default function ConferirRecebimento() {
   const { recebimento } = useParams();
   const recebimentoId = Number(recebimento);
   const { perfil, sair } = useAuth();
+  // Administrador volta para as entregas; conferente, para o início dele
+  const voltar = perfil?.admin_loja ? "/loja/entregas" : "/loja/inicio";
   const online = useConexao();
 
   const [entrega, setEntrega] = useState<Expedicao | null>(null);
@@ -227,7 +229,7 @@ export default function ConferirRecebimento() {
     <div className="flex h-dvh flex-col bg-fundo">
       <header className="shrink-0 bg-navy text-white">
         <div className="flex h-14 items-center gap-3 px-3 sm:h-16 sm:px-6">
-          <Link to="/loja/entregas" className="rounded-lg p-2 hover:bg-white/10" aria-label="Voltar para as entregas" title="Voltar">
+          <Link to={voltar} className="rounded-lg p-2 hover:bg-white/10" aria-label="Voltar" title="Voltar">
             <ArrowLeft className="size-5" />
           </Link>
           <Logo simbolo className="h-7 shrink-0 sm:h-8" />
@@ -297,8 +299,8 @@ export default function ConferirRecebimento() {
                 </div>
                 <ConfrontoRecebimento linhas={linhas} visao="loja" />
                 <p className="text-sm text-suave">Para contar de novo, peça à PRODIGY para reabrir este recebimento.</p>
-                <Link to="/loja/entregas" className="inline-flex font-medium text-azul-escuro hover:underline">
-                  Voltar para as entregas
+                <Link to={voltar} className="inline-flex font-medium text-azul-escuro hover:underline">
+                  Voltar
                 </Link>
               </div>
             </main>
