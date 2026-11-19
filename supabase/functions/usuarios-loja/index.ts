@@ -1,9 +1,16 @@
-// Usuários das lojas (módulo "Lojas MINISO"). Só supervisor.
+// Usuários das lojas (módulo "Lojas MINISO").
 // Separada da função "usuarios" (equipe do CD), que não muda.
 // O usuário de loja é um "operador" com perfis.loja_id: vê só a própria loja.
+//   admin_loja = true  -> administrador da loja (cadastrado pela PRODIGY)
+//   admin_loja = false -> conferente da loja
 //
-// POST { acao: "criar", login, nome, senha, loja_id, cargo? }
-// POST { acao: "atualizar", id, nome?, cargo?, loja_id?, ativo?, senha? }
+// Quem pode chamar:
+//   * supervisor PRODIGY: qualquer usuário de loja, qualquer loja;
+//   * administrador da loja (ativo, com o acesso da loja ligado): só os
+//     conferentes da PRÓPRIA loja. A loja vem do banco, nunca do pedido.
+//
+// POST { acao: "criar", login, nome, senha, loja_id?, cargo?, admin_loja? }
+// POST { acao: "atualizar", id, nome?, cargo?, loja_id?, admin_loja?, ativo?, senha? }
 //   (só para usuários que já são de loja; para encerrar o acesso, ativo: false)
 
 const DOMINIO_LOGIN = "usuarios.prodigy-wms.local";
@@ -56,7 +63,21 @@ Deno.serve(async (req) => {
   const meuId = (eu.corpo as Record<string, unknown> | null)?.id as string | undefined;
   if (!eu.ok || !meuId) return resposta(401, { erro: "Faça login novamente" });
   const sup = await api("/rest/v1/rpc/eh_supervisor", { method: "POST", chave: ANON, token, body: "{}" });
-  if (!sup.ok || sup.corpo !== (true as unknown)) return resposta(403, { erro: "Apenas supervisores" });
+  const supervisor = sup.ok && sup.corpo === (true as unknown);
+
+  // Não é supervisor: precisa ser administrador de uma loja com acesso ligado
+  let minhaLoja: number | null = null;
+  if (!supervisor) {
+    const me = await api(`/rest/v1/perfis?select=ativo,loja_id,admin_loja&id=eq.${meuId}`);
+    const p = Array.isArray(me.corpo) ? me.corpo[0] : null;
+    if (!p || p.ativo !== true || p.admin_loja !== true || p.loja_id == null) {
+      return resposta(403, { erro: "Apenas supervisores ou o administrador da loja" });
+    }
+    const l = await api(`/rest/v1/lojas?select=modulo_loja&id=eq.${p.loja_id}`);
+    const loja = Array.isArray(l.corpo) ? l.corpo[0] : null;
+    if (!loja || loja.modulo_loja !== true) return resposta(403, { erro: "O acesso da sua loja não está liberado" });
+    minhaLoja = Number(p.loja_id);
+  }
 
   let corpo: Record<string, unknown>;
   try {
@@ -65,6 +86,15 @@ Deno.serve(async (req) => {
     return resposta(400, { erro: "Requisição inválida" });
   }
   const texto = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  // Administrador da loja: a loja é sempre a dele, e ele só mexe em conferentes
+  if (minhaLoja !== null) {
+    if (corpo.admin_loja === true) return resposta(403, { erro: "Só a PRODIGY cadastra administradores da loja" });
+    if (corpo.loja_id !== undefined && corpo.loja_id !== null && Number(corpo.loja_id) !== minhaLoja) {
+      return resposta(403, { erro: "Você só cadastra usuários da sua loja" });
+    }
+    corpo.loja_id = minhaLoja;
+    delete corpo.admin_loja;
+  }
   const lojaInformada = corpo.loja_id !== undefined && corpo.loja_id !== null && corpo.loja_id !== "";
   const lojaId = Number(corpo.loja_id);
   if (lojaInformada) {
@@ -98,7 +128,7 @@ Deno.serve(async (req) => {
     const perfil = await api("/rest/v1/perfis", {
       method: "POST",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ id: novoId, login, nome, papel: "operador", cargo, loja_id: lojaId }),
+      body: JSON.stringify({ id: novoId, login, nome, papel: "operador", cargo, loja_id: lojaId, admin_loja: minhaLoja === null && corpo.admin_loja !== false }),
     });
     if (!perfil.ok) {
       await api(`/auth/v1/admin/users/${novoId}`, { method: "DELETE" });
@@ -111,9 +141,14 @@ Deno.serve(async (req) => {
     const id = texto(corpo.id);
     if (!/^[0-9a-f-]{36}$/i.test(id)) return resposta(400, { erro: "Usuário não informado" });
     // Esta função só mexe em usuário de loja; a equipe do CD fica na função "usuarios"
-    const alvo = await api(`/rest/v1/perfis?select=id,loja_id&id=eq.${id}`);
+    const alvo = await api(`/rest/v1/perfis?select=id,loja_id,admin_loja&id=eq.${id}`);
     const linha = Array.isArray(alvo.corpo) ? alvo.corpo[0] : null;
     if (!linha || linha.loja_id == null) return resposta(404, { erro: "Usuário de loja não encontrado" });
+    if (minhaLoja !== null) {
+      // Administrador da loja: só conferentes da própria loja, e não a si mesmo
+      if (Number(linha.loja_id) !== minhaLoja) return resposta(404, { erro: "Usuário de loja não encontrado" });
+      if (linha.admin_loja === true || id === meuId) return resposta(403, { erro: "Só a PRODIGY altera administradores da loja" });
+    }
 
     const mudancas: Record<string, unknown> = {};
     if (corpo.nome !== undefined) {
@@ -121,7 +156,8 @@ Deno.serve(async (req) => {
       mudancas.nome = texto(corpo.nome);
     }
     if (corpo.cargo !== undefined) mudancas.cargo = texto(corpo.cargo) || null;
-    if (lojaInformada) mudancas.loja_id = lojaId;
+    if (lojaInformada && minhaLoja === null) mudancas.loja_id = lojaId;
+    if (corpo.admin_loja !== undefined && minhaLoja === null) mudancas.admin_loja = corpo.admin_loja === true;
     if (corpo.ativo !== undefined) mudancas.ativo = corpo.ativo === true;
 
     const senha = typeof corpo.senha === "string" ? corpo.senha : "";

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import {
   ChartColumn,
+  ChevronDown,
   ChevronLeft,
   ClipboardCheck,
   History,
@@ -12,9 +13,11 @@ import {
   ScanBarcode,
   Store,
   Truck,
+  UserCog,
   Users,
   Waypoints,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
@@ -25,26 +28,57 @@ import { Logo } from "./Logo";
 import { SeloLoja } from "./SeloLoja";
 import { Carregando, cx } from "./ui";
 
-const MENU = [
-  { para: "/painel", texto: "Painel", icone: LayoutDashboard },
-  { para: "/remessas", texto: "Remessas", icone: PackagePlus },
-  { para: "/distribuicao", texto: "Distribuição", icone: Waypoints },
-  { para: "/conferencia", texto: "Conferência", icone: ClipboardCheck },
-  { para: "/bips", texto: "Log de bips", icone: History },
-  { para: "/estatisticas", texto: "Estatísticas", icone: ChartColumn },
-  { para: "/usuarios", texto: "Usuários", icone: Users },
-  { para: "/lojas", texto: "Lojas", icone: Store },
+interface ItemMenu {
+  para: string;
+  texto: string;
+  icone: LucideIcon;
+  /** Itens seguidos com o mesmo grupo viram uma sanfona. */
+  grupo?: string;
+}
+
+const MENU: ItemMenu[] = [
+  { para: "/painel", texto: "Painel", icone: LayoutDashboard, grupo: "Acompanhamento" },
+  { para: "/estatisticas", texto: "Estatísticas", icone: ChartColumn, grupo: "Acompanhamento" },
+  { para: "/bips", texto: "Log de bips", icone: History, grupo: "Acompanhamento" },
+  { para: "/remessas", texto: "Remessas", icone: PackagePlus, grupo: "Operação" },
+  { para: "/distribuicao", texto: "Distribuição", icone: Waypoints, grupo: "Operação" },
+  { para: "/conferencia", texto: "Conferência", icone: ClipboardCheck, grupo: "Operação" },
+  { para: "/usuarios", texto: "Usuários", icone: Users, grupo: "Cadastros" },
+  { para: "/lojas", texto: "Lojas", icone: Store, grupo: "Cadastros" },
   // Módulo das lojas: área separada, no fim do menu
   { para: "/lojas-miniso", texto: "Lojas MINISO", icone: Truck },
 ];
 
-/** Menu do administrador da loja (operador com loja vinculada). */
-export const MENU_LOJA = [
-  { para: "/loja", texto: "Painel da loja", icone: LayoutDashboard },
-  { para: "/loja/entregas", texto: "Entregas", icone: Truck },
-];
+/** Menu da loja; a Equipe aparece só para o administrador da loja. */
+export function menuLoja(admin: boolean): ItemMenu[] {
+  return [
+    { para: "/loja", texto: "Painel da loja", icone: LayoutDashboard },
+    { para: "/loja/entregas", texto: "Entregas", icone: Truck },
+    ...(admin ? [{ para: "/loja/equipe", texto: "Equipe da loja", icone: UserCog }] : []),
+  ];
+}
 
-type ItemMenu = (typeof MENU)[number];
+const CHAVE_GRUPOS = "wms.menuGrupos";
+function lerGruposAbertos(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_GRUPOS) ?? "null") ?? ["Acompanhamento", "Operação"];
+  } catch {
+    return ["Acompanhamento", "Operação"];
+  }
+}
+
+/** Junta itens seguidos do mesmo grupo; item sem grupo fica sozinho. */
+function agrupar(menu: ItemMenu[]) {
+  const blocos: { grupo?: string; itens: ItemMenu[] }[] = [];
+  for (const item of menu) {
+    const ultimo = blocos[blocos.length - 1];
+    if (item.grupo && ultimo?.grupo === item.grupo) ultimo.itens.push(item);
+    else blocos.push({ grupo: item.grupo, itens: [item] });
+  }
+  return blocos;
+}
+
+const rotaAtiva = (caminho: string, para: string) => caminho === para || caminho.startsWith(`${para}/`);
 
 /**
  * Exige login (e, se pedido, perfil de supervisor). Usuário de loja só entra
@@ -91,9 +125,17 @@ function Navegacao({
   // Recolhido: só o ícone; o nome vira dica ao passar o mouse e continua
   // disponível para leitor de tela
   const rotulo = (texto: string) => (recolhido ? <span className="sr-only">{texto}</span> : <span className="truncate">{texto}</span>);
-  return (
-    <nav className="flex flex-col gap-1" aria-label="Principal">
-      {menu.map(({ para, texto, icone: Icone }) => (
+  const { pathname } = useLocation();
+  const [abertos, setAbertos] = useState<string[]>(lerGruposAbertos);
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAVE_GRUPOS, JSON.stringify(abertos));
+    } catch {
+      /* sem armazenamento */
+    }
+  }, [abertos]);
+
+  const link = ({ para, texto, icone: Icone }: ItemMenu) => (
         <NavLink
           key={para}
           to={para}
@@ -116,7 +158,44 @@ function Navegacao({
             </>
           )}
         </NavLink>
-      ))}
+  );
+
+  return (
+    <nav className="flex flex-col gap-1" aria-label="Principal">
+      {agrupar(menu).map((bloco, i) => {
+        // Sem grupo, com um item só, ou menu recolhido (só ícones): itens soltos
+        if (!bloco.grupo || bloco.itens.length === 1 || recolhido) {
+          return (
+            <div key={bloco.grupo ?? bloco.itens[0].para} className={cx("flex flex-col gap-1", recolhido && i > 0 && bloco.grupo && "mt-2 border-t border-white/10 pt-2")}>
+              {bloco.itens.map(link)}
+            </div>
+          );
+        }
+        const grupo = bloco.grupo;
+        const temAtivo = bloco.itens.some((it) => rotaAtiva(pathname, it.para));
+        const aberto = temAtivo || abertos.includes(grupo);
+        const id = `grupo-${grupo.normalize("NFD").replace(/[^a-zA-Z]/g, "")}`;
+        return (
+          <div key={grupo} className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setAbertos((a) => (a.includes(grupo) ? a.filter((g) => g !== grupo) : [...a, grupo]))}
+              aria-expanded={aberto}
+              aria-controls={id}
+              disabled={temAtivo}
+              className="mt-1 flex h-9 items-center justify-between rounded-lg px-3 text-xs font-semibold tracking-[0.14em] whitespace-nowrap text-white/50 uppercase hover:text-white disabled:cursor-default disabled:hover:text-white/50"
+            >
+              {grupo}
+              <ChevronDown className={cx("size-4 transition-transform duration-200", aberto && "rotate-180")} aria-hidden />
+            </button>
+            {aberto && (
+              <div id={id} className="flex flex-col gap-1">
+                {bloco.itens.map(link)}
+              </div>
+            )}
+          </div>
+        );
+      })}
       {atalhoSeparacao && (
         <>
       <div className="my-3 h-px bg-white/10" />
@@ -197,8 +276,8 @@ export function LayoutLoja() {
   const nome = loja.dados ? nomeLoja(loja.dados.nome, loja.dados.numero) : null;
   return (
     <LayoutSupervisor
-      menu={MENU_LOJA}
-      papel={nome ? `Loja ${nome}` : "Administrador da loja"}
+      menu={menuLoja(!!perfil?.admin_loja)}
+      papel={nome ? `${perfil?.admin_loja ? "Administrador" : "Conferente"} · ${nome}` : perfil?.admin_loja ? "Administrador da loja" : "Conferente da loja"}
       atalhoSeparacao={false}
       identificacao={
         !loja.carregando && !loja.dados ? (

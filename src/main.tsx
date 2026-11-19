@@ -28,6 +28,7 @@ const PedidoLoja = lazy(() => import("./pages/loja/PedidoLoja"));
 const PedidoLojaSupervisor = lazy(() => import("./pages/loja/PedidoLoja").then((m) => ({ default: m.PedidoLojaSupervisor })));
 const Entregas = lazy(() => import("./pages/loja/Entregas"));
 const ConferirRecebimento = lazy(() => import("./pages/loja/ConferirRecebimento"));
+const EquipeLoja = lazy(() => import("./pages/loja/Equipe"));
 
 function Inicio() {
   const { carregando, perfil } = useAuth();
@@ -115,6 +116,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/loja" element={<PainelLoja />} />
               <Route path="/loja/pedidos/:id" element={<PedidoLoja />} />
               <Route path="/loja/entregas" element={<Entregas />} />
+              <Route path="/loja/equipe" element={<EquipeLoja />} />
             </Route>
             <Route
               path="/loja/conferir/:recebimento"

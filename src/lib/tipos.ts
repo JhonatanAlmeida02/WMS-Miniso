@@ -13,6 +13,8 @@ export interface Perfil {
   criado_em: string;
   /** Preenchido só para o administrador de loja (operador com acesso à própria loja). */
   loja_id?: number | null;
+  /** Usuário de loja: administrador (cadastra a equipe) ou conferente. */
+  admin_loja?: boolean;
 }
 
 export interface Loja {

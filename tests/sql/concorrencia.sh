@@ -48,7 +48,7 @@ for s in 1 2 3 4 5; do
   } > "$TMP/r$s.sql"
   $PSQL -X -q -d "$BANCO" -f "$TMP/r$s.sql" > /dev/null 2>&1 &
 done
-sleep 0.3
+sleep 0.1
 q "$(como $LOJA2) select public.finalizar_recebimento_loja($REC);" >/dev/null
 wait
 NO_FECHAMENTO=$(q "select qtd_recebida from public.divergencias where recebimento_id = $REC and tipo = 'sobra'")

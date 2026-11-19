@@ -8,6 +8,7 @@ export interface UsuarioLoja {
   cargo: string | null;
   ativo: boolean;
   loja_id: number;
+  admin_loja: boolean;
   ultima_atividade: string | null;
   criado_em: string;
 }
