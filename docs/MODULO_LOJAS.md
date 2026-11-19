@@ -31,6 +31,16 @@ Está na mesma aplicação e no mesmo banco do PRODIGY WMS e não muda nada para
   revisão; a contagem anterior e as divergências dela continuam no histórico. A resolução de uma
   divergência registra a solução sem alterar as quantidades.
 
+## Equipe da loja
+
+- **Administrador da loja** (`admin_loja = true`): cadastrado pela PRODIGY em **Lojas MINISO → Usuários e
+  acesso**. Vê o painel e as entregas e cadastra, redefine a senha e desativa os **conferentes** da própria
+  loja, em **Equipe da loja**.
+- **Conferente da loja** (`admin_loja = false`): vê o painel e as entregas e confere. Não cadastra ninguém.
+- A loja do novo usuário vem sempre do administrador logado, nunca da tela. O administrador não altera
+  outros administradores nem a si mesmo, e não vê a equipe de outra loja (função `usuarios-loja` e
+  `equipe_da_minha_loja()` no banco).
+
 ## O que muda no que já está em produção
 
 A separação na PRODIGY (importar, distribuir, separar, conferir no CD, painel, log, estatísticas e

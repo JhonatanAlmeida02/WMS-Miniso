@@ -857,6 +857,11 @@ function AbaUsuarios() {
                                 {u.cargo && ` · ${u.cargo}`} · visto {tempoRelativo(u.ultima_atividade)}
                               </span>
                             </span>
+                            {u.admin_loja ? (
+                              <Selo className="bg-navy text-white">Administrador</Selo>
+                            ) : (
+                              <Selo className="bg-azul-claro text-azul-escuro">Conferente</Selo>
+                            )}
                             {!u.ativo && <Selo className="bg-navy/8 text-suave">Desativado</Selo>}
                             <Botao variante="fantasma" tamanho="sm" icone={<Pencil className="size-4" />} onClick={() => setEdicao({ modo: "editar", u })}>
                               Editar
@@ -912,6 +917,7 @@ function FormUsuarioLoja({ edicao, lojas, aoSalvar, aoFechar }: { edicao: Edicao
   const [nome, setNome] = useState(u?.nome ?? "");
   const [cargo, setCargo] = useState(u?.cargo ?? "");
   const [lojaId, setLojaId] = useState(String(u?.loja_id ?? (edicao.modo === "novo" ? (edicao.loja ?? "") : "")));
+  const [adminLoja, setAdminLoja] = useState(u ? u.admin_loja : true);
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -922,10 +928,10 @@ function FormUsuarioLoja({ edicao, lojas, aoSalvar, aoFechar }: { edicao: Edicao
     setSalvando(true);
     try {
       if (edicao.modo === "novo") {
-        await chamarUsuariosLoja({ acao: "criar", login, nome, cargo, senha, loja_id: Number(lojaId) });
+        await chamarUsuariosLoja({ acao: "criar", login, nome, cargo, senha, loja_id: Number(lojaId), admin_loja: adminLoja });
         toast.success(`Usuário ${login} criado`);
       } else if (edicao.modo === "editar") {
-        await chamarUsuariosLoja({ acao: "atualizar", id: edicao.u.id, nome, cargo, loja_id: Number(lojaId) });
+        await chamarUsuariosLoja({ acao: "atualizar", id: edicao.u.id, nome, cargo, loja_id: Number(lojaId), admin_loja: adminLoja });
         toast.success("Usuário atualizado");
       } else {
         await chamarUsuariosLoja({ acao: "atualizar", id: edicao.u.id, senha });
@@ -970,6 +976,13 @@ function FormUsuarioLoja({ edicao, lojas, aoSalvar, aoFechar }: { edicao: Edicao
             </Selecao>
             <Campo rotulo="Cargo (opcional)" value={cargo} onChange={(e) => setCargo(e.target.value)} />
           </div>
+          <label className="flex items-start gap-3 rounded-xl bg-fundo px-3 py-2.5 text-sm">
+            <input type="checkbox" className="mt-0.5 size-5 accent-azul" checked={adminLoja} onChange={(e) => setAdminLoja(e.target.checked)} />
+            <span>
+              <span className="font-medium">Administrador da loja</span>
+              <span className="block text-xs text-suave">Pode cadastrar e desativar os conferentes da própria loja. Sem marcar, a pessoa só confere.</span>
+            </span>
+          </label>
         </>
       )}
       {edicao.modo !== "editar" && (

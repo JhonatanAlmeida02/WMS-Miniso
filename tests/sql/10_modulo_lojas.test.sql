@@ -288,6 +288,25 @@ select teste.igual((select qtd_conferida from public.bipar_conferencia(:conf2, '
 select public.finalizar_conferencia(:conf2);
 select teste.igual((select count(*) from public.v_divergencias), 5::bigint, 'operador interno vê as divergências');
 
+\echo '--- equipe da loja: administrador x conferente'
+reset role;
+update public.perfis set admin_loja = true where login in ('loja01', 'loja02', 'loja03');
+insert into auth.users (id) values ('00000000-0000-0000-0000-000000000011');
+insert into public.perfis (id, login, nome, papel, loja_id, admin_loja) values
+  ('00000000-0000-0000-0000-000000000011', 'conf01', 'Conferente Loja 01', 'operador', (select id from public.lojas where numero = 1), false);
+select teste.deve_falhar('update public.perfis set admin_loja = true where login = ''operador1''', 'perfis_admin_loja_so_loja', 'equipe do CD não vira administrador de loja');
+set role authenticated;
+select teste.como('00000000-0000-0000-0000-000000000001');
+select teste.igual((select count(*) from public.equipe_da_minha_loja()), 2::bigint, 'administrador vê a equipe da própria loja');
+select teste.igual((select count(*) from public.equipe_da_minha_loja() where login = 'loja02'), 0::bigint, 'administrador não vê equipe de outra loja');
+select teste.como('00000000-0000-0000-0000-000000000011');
+select teste.deve_falhar('select * from public.equipe_da_minha_loja()', 'apenas o administrador', 'conferente não lista a equipe');
+select teste.igual((select count(*) from public.v_expedicoes), 2::bigint, 'conferente vê as entregas da própria loja');
+select teste.como('00000000-0000-0000-0000-0000000000bb');
+select teste.deve_falhar('select * from public.equipe_da_minha_loja()', 'apenas o administrador', 'operador do CD não lista equipe de loja');
+select teste.como('00000000-0000-0000-0000-0000000000aa');
+select teste.igual((select count(*) from public.usuarios_das_lojas() where admin_loja), 3::bigint, 'supervisor vê quem é administrador');
+
 \echo '--- anônimo não executa nada novo'
 reset role;
 select teste.igual(has_function_privilege('anon', 'public.bipar_recebimento(bigint,text,integer,boolean,uuid)', 'execute'), false, 'anon sem bipar_recebimento');
