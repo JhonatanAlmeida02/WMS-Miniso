@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import {
@@ -8,10 +8,14 @@ import {
   History,
   LoaderCircle,
   LogOut,
+  PackageCheck,
+  Printer,
   RotateCcw,
   ScanBarcode,
   Undo2,
 } from "lucide-react";
+import { aplicarLeituraCaixa, textoVolume, type ItemCaixa } from "../lib/caixaTemporaria";
+import { imprimirEtiquetaCaixa } from "../lib/imprimirEtiquetaCaixa";
 import { useAuth } from "../lib/auth";
 import { ehGestor } from "../lib/papeis";
 import { mensagemErro, supabase } from "../lib/supabase";
@@ -61,6 +65,12 @@ export default function Conferir() {
   const [params, setParams] = useSearchParams();
   const { lista: remessas, escolhida, escolher, carregando: carregandoRemessas } = useRemessaEscolhida(true);
   const confId = Number(params.get("conf")) || null;
+  const caixaEmUso = useRef({ pendente: false, emOperacao: false });
+  const aoMudarCaixa = useCallback((pendente: boolean, emOperacao: boolean) => { caixaEmUso.current = { pendente, emOperacao }; }, []);
+  function confirmarSaida() {
+    if (caixaEmUso.current.emOperacao) { toast.error("Aguarde a operação da caixa terminar."); return false; }
+    return !caixaEmUso.current.pendente || window.confirm("A lista temporária da caixa aberta será perdida. As leituras já gravadas continuarão contando. Deseja sair?");
+  }
 
   const ehSupervisor = ehGestor(perfil);
   const lojas = useConsulta<ConferenciaLoja[]>(
@@ -82,6 +92,7 @@ export default function Conferir() {
   const [abrindo, setAbrindo] = useState<number | null>(null);
 
   async function abrir(l: ConferenciaLoja, nova = false) {
+    if (!confirmarSaida()) return;
     if (l.status === "finalizada" && !nova) {
       setParams({ remessa: String(l.remessa_id), conf: String(l.conferencia_id) });
       return;
@@ -105,7 +116,7 @@ export default function Conferir() {
           {confId ? (
             <button
               type="button"
-              onClick={() => setParams(escolhida ? { remessa: String(escolhida.id) } : {})}
+              onClick={() => { if (confirmarSaida()) setParams(escolhida ? { remessa: String(escolhida.id) } : {}); }}
               className="rounded-lg p-2 hover:bg-white/10"
               aria-label="Voltar para as lojas"
               title="Voltar para as lojas"
@@ -125,14 +136,14 @@ export default function Conferir() {
               {escolhida && ` · Remessa ${escolhida.codigo}`}
             </p>
           </div>
-          <button type="button" onClick={sair} className="rounded-lg p-2 hover:bg-white/10" aria-label="Sair" title="Sair">
+          <button type="button" onClick={() => { if (confirmarSaida()) void sair(); }} className="rounded-lg p-2 hover:bg-white/10" aria-label="Sair" title="Sair">
             <LogOut className="size-5" />
           </button>
         </div>
       </header>
 
       {confId ? (
-        <TelaConferencia key={confId} conferenciaId={confId} aoNovaContagem={(l) => abrir(l, true)} />
+        <TelaConferencia key={confId} conferenciaId={confId} aoMudarCaixa={aoMudarCaixa} aoNovaContagem={(l) => abrir(l, true)} />
       ) : (
         <main className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-6">
           <div className="mx-auto max-w-5xl space-y-4">
@@ -218,9 +229,11 @@ export default function Conferir() {
 function TelaConferencia({
   conferenciaId,
   aoNovaContagem,
+  aoMudarCaixa,
 }: {
   conferenciaId: number;
   aoNovaContagem: (l: ConferenciaLoja) => void;
+  aoMudarCaixa: (pendente: boolean, emOperacao: boolean) => void;
 }) {
   const [, setParams] = useSearchParams();
   const [loja, setLoja] = useState<ConferenciaLoja | null>(null);
@@ -236,6 +249,12 @@ function TelaConferencia({
   const [leituras, setLeituras] = useState<Leitura[]>([]);
   const [confrontar, setConfrontar] = useState(false);
   const [finalizando, setFinalizando] = useState(false);
+  const [caixa, setCaixa] = useState<ItemCaixa[]>([]);
+  const [volume, setVolume] = useState(() => {
+    try { const n = Number(sessionStorage.getItem(`wms.volumeConferencia:${conferenciaId}`)); return Number.isSafeInteger(n) && n > 0 ? n : 1; } catch { return 1; }
+  });
+  const [fechandoCaixa, setFechandoCaixa] = useState(false);
+  const fechando = useRef(false);
   const campo = useRef<HTMLInputElement>(null);
   const ocupado = useRef(false);
   const seq = useRef(0);
@@ -257,6 +276,17 @@ function TelaConferencia({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conferenciaId]);
 
+  useEffect(() => {
+    aoMudarCaixa(caixa.length > 0, gravando || fechandoCaixa || finalizando);
+    return () => aoMudarCaixa(false, false);
+  }, [caixa.length, gravando, fechandoCaixa, finalizando, aoMudarCaixa]);
+
+  useEffect(() => {
+    const aviso = (e: BeforeUnloadEvent) => { if (caixa.length) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, [caixa.length]);
+
   const focar = () => requestAnimationFrame(() => campo.current?.focus());
   useEffect(() => {
     if (status === "em_andamento") focar();
@@ -271,7 +301,11 @@ function TelaConferencia({
 
   async function bipar(codigo: string, qtd: number): Promise<boolean> {
     const c = codigo.replace(/\s/g, "");
-    if (!c || ocupado.current || status !== "em_andamento") return false;
+    if (!c || ocupado.current || fechando.current || status !== "em_andamento") return false;
+    if (qtd < 0 && -(caixa.find(i => i.sku === c)?.qtd ?? 0) > qtd) {
+      toast.error("Só é possível desfazer itens da caixa aberta.");
+      return false;
+    }
     ocupado.current = true;
     setGravando(true);
     setGtin("");
@@ -279,13 +313,14 @@ function TelaConferencia({
     setGravando(false);
     ocupado.current = false;
     focar();
-    if (error) {
+    if (error || !data?.[0]) {
       somErro();
       vibrar([80, 60, 80]);
-      toast.error(mensagemErro(error));
+      toast.error(error ? mensagemErro(error) : "Leitura não confirmada. Atualize a conferência antes de tentar novamente.");
       return false;
     }
     const linha = (data as LinhaConfronto[])[0];
+    setCaixa((itens) => aplicarLeituraCaixa(itens, { sku: linha.gtin, descricao: linha.produto }, qtd));
     setLinhas((ls) => {
       const outras = (ls ?? []).filter((x) => x.gtin !== linha.gtin);
       return [linha, ...outras];
@@ -307,7 +342,7 @@ function TelaConferencia({
   /** Bipou: no modo rápido conta 1; senão mostra o produto e pede a quantidade. */
   function lido(codigo: string) {
     const c = codigo.replace(/\s/g, "");
-    if (!c || status !== "em_andamento") return;
+    if (!c || fechando.current || status !== "em_andamento") return;
     if (modoRapido) {
       void bipar(c, 1);
       return;
@@ -350,21 +385,74 @@ function TelaConferencia({
   const leitorQtd = useLeitor(lido);
 
   async function desfazer(l: Leitura) {
-    await bipar(l.gtin, -l.qtd);
-    setLeituras((ls) => ls.filter((x) => x.id !== l.id));
+    if (await bipar(l.gtin, -l.qtd)) setLeituras((ls) => ls.filter((x) => x.id !== l.id));
+  }
+
+  function podeFechar() {
+    if (fechando.current || ocupado.current) return false;
+    if (pendente || gtin.trim()) { toast.error("Confirme ou cancele a leitura pendente antes de fechar a caixa."); return false; }
+    return true;
+  }
+
+  function limparCaixa(ultima: boolean) {
+    setCaixa([]);
+    setLeituras([]);
+    if (!ultima) {
+      setVolume(volume + 1);
+      try { sessionStorage.setItem(`wms.volumeConferencia:${conferenciaId}`, String(volume + 1)); } catch { /* sem armazenamento */ }
+    }
+  }
+
+  async function solicitarEtiqueta(ultima: boolean) {
+    if (!loja || !caixa.length) return;
+    await imprimirEtiquetaCaixa({ volume, ultima, loja: `${loja.loja_numero == null ? "" : String(loja.loja_numero).padStart(2,"0")+" · "}${loja.loja_nome}`, pedido: loja.pedido_nome, conferencia: conferenciaId, itens: caixa });
+    limparCaixa(ultima);
+    toast.success(`Impressão solicitada · volume ${textoVolume(volume, ultima)}`);
+  }
+
+  async function fecharCaixa() {
+    if (!podeFechar() || !caixa.length || status !== "em_andamento") return;
+    fechando.current = true;
+    setFechandoCaixa(true);
+    try { await solicitarEtiqueta(false); }
+    catch (e) { toast.error((e as Error).message || "Impressão não solicitada. A lista da caixa foi mantida."); }
+    finally { fechando.current = false; setFechandoCaixa(false); focar(); }
+  }
+
+  function abrirFinalizacao() {
+    if (!podeFechar()) return;
+    if (!caixa.length && volume > 1) {
+      if (!window.confirm("A última caixa já foi descartada e não pode ser reimpressa com o total. Finalizar a conferência sem nova etiqueta?")) return;
+    }
+    setConfrontar(true);
+  }
+
+  async function imprimirUltimaPendente() {
+    if (fechando.current) return;
+    fechando.current = true;
+    setFechandoCaixa(true);
+    try { await solicitarEtiqueta(true); }
+    catch { toast.error("Não foi possível solicitar a impressão. A lista temporária continua nesta tela."); }
+    finally { fechando.current = false; setFechandoCaixa(false); }
   }
 
   async function finalizar() {
+    if (!podeFechar() || status !== "em_andamento") return;
+    fechando.current = true;
     setFinalizando(true);
-    const { error } = await supabase.rpc("finalizar_conferencia", { p_conferencia: conferenciaId });
-    setFinalizando(false);
-    if (error) {
-      toast.error(mensagemErro(error));
-      return;
-    }
-    setConfrontar(false);
-    toast.success("Conferência finalizada");
-    carregar();
+    try {
+      const { error } = await supabase.rpc("finalizar_conferencia", { p_conferencia: conferenciaId });
+      if (error) { toast.error(mensagemErro(error)); return; }
+      setStatus("finalizada");
+      setConfrontar(false);
+      toast.success("Conferência finalizada");
+      try { sessionStorage.removeItem(`wms.volumeConferencia:${conferenciaId}`); } catch { /* sem armazenamento */ }
+      if (caixa.length) {
+        try { await solicitarEtiqueta(true); }
+        catch { toast.error("Conferência finalizada. A etiqueta não foi solicitada; use Imprimir última caixa antes de sair desta tela."); }
+      }
+      await carregar();
+    } catch { toast.error("Não foi possível confirmar a operação. Atualize a conferência para consultar o resultado."); } finally { fechando.current = false; setFinalizando(false); }
   }
 
   if (!linhas || !loja || !status) return <Carregando />;
@@ -386,12 +474,12 @@ function TelaConferencia({
           <Barra parte={totais.conferido} total={totais.separado} className="mt-1 h-1.5" />
         </div>
         {finalizada ? (
-          <Botao variante="secundario" icone={<RotateCcw className="size-4" />} onClick={() => aoNovaContagem(loja)}>
+          <Botao variante="secundario" icone={<RotateCcw className="size-4" />} disabled={caixa.length > 0 || finalizando || fechandoCaixa} onClick={() => aoNovaContagem(loja)}>
             <span className="hidden sm:inline">Conferir de novo</span>
           </Botao>
         ) : (
-          <Botao variante="sucesso" icone={<CheckCheck className="size-4" />} onClick={() => setConfrontar(true)}>
-            Finalizar
+          <Botao variante="sucesso" icone={<CheckCheck className="size-4" />} onClick={abrirFinalizacao} disabled={gravando || fechandoCaixa || finalizando}>
+            Fechar última caixa
           </Botao>
         )}
       </div>
@@ -406,8 +494,12 @@ function TelaConferencia({
                 {loja.finalizada_por_nome && ` por ${loja.finalizada_por_nome}`}
               </span>
             </div>
+            {caixa.length > 0 && <div className="rounded-xl bg-amarelo-claro p-4 text-sm">
+              <p className="mb-3 font-medium">A última caixa ainda tem {caixa.length} SKU(s) aguardando solicitação de impressão. A lista existe somente nesta tela.</p>
+              <Botao carregando={fechandoCaixa || finalizando} icone={<Printer className="size-4" />} onClick={() => void imprimirUltimaPendente()}>Imprimir última caixa · {volume}/{volume}</Botao>
+            </div>}
             <Confronto linhas={linhas} />
-            <Botao variante="secundario" onClick={() => setParams({ remessa: String(loja.remessa_id) })}>
+            <Botao variante="secundario" disabled={caixa.length > 0 || finalizando || fechandoCaixa} onClick={() => setParams({ remessa: String(loja.remessa_id) })}>
               Voltar para as lojas
             </Botao>
           </div>
@@ -446,6 +538,7 @@ function TelaConferencia({
                   spellCheck={false}
                   enterKeyHint="send"
                   placeholder="Bipe o produto"
+                  disabled={fechandoCaixa || finalizando}
                   className="tabular h-14 w-full rounded-xl border-2 border-azul/30 bg-azul-claro/40 pr-3 pl-13 text-lg font-medium tracking-wide placeholder:font-normal placeholder:tracking-normal placeholder:text-suave/80 focus:border-azul focus:bg-white focus:outline-none sm:text-xl"
                 />
               </div>
@@ -525,11 +618,20 @@ function TelaConferencia({
                   <p className="text-2xl font-semibold">Bipe os produtos da caixa</p>
                   <p className="max-w-md text-sm text-suave">
                     Bipe o produto, digite a quantidade e confirme (no <strong>Modo rápido</strong>, cada bip já conta 1). No fim, toque em{" "}
-                    <strong>Finalizar</strong> para ver o confronto com a separação.
+                    <strong>Fechar última caixa</strong> para ver o confronto com a separação.
                   </p>
                 </div>
               )}
             </div>
+
+            <section className="shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-borda" aria-label={`Caixa ${volume}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-borda px-4 py-3">
+                <div><h2 className="flex items-center gap-2 font-semibold"><PackageCheck className="size-5 text-azul" />Caixa {volume}</h2><p className="text-xs text-suave">{caixa.length} SKU(s) · {fmtNum(caixa.reduce((s,i) => s+i.qtd,0))} un. · Lista temporária</p></div>
+                <Botao icone={<Printer className="size-4" />} onClick={() => void fecharCaixa()} carregando={fechandoCaixa} disabled={!caixa.length || gravando || finalizando || !!pendente}>Fechar caixa e imprimir</Botao>
+              </div>
+              {caixa.length ? <div className="max-h-48 overflow-auto"><table className="w-full text-sm"><thead className="sticky top-0 bg-fundo text-left text-xs uppercase text-suave"><tr><th className="px-4 py-2">SKU</th><th className="px-4 py-2">Descrição</th><th className="px-4 py-2 text-right">Qtd.</th></tr></thead><tbody className="divide-y divide-borda">{caixa.map(i => <tr key={i.sku}><td className="tabular px-4 py-2">{i.sku}</td><td className="px-4 py-2">{i.descricao}</td><td className="tabular px-4 py-2 text-right font-semibold">{fmtNum(i.qtd)}</td></tr>)}</tbody></table></div> : <p className="px-4 py-4 text-sm text-suave">Bipe os produtos para montar esta caixa.</p>}
+              <p className="border-t border-borda px-4 py-2 text-xs text-suave">Ao fechar, a impressão é solicitada e esta lista é descartada. Na última caixa, use “Fechar última caixa”. Não há histórico de etiquetas.</p>
+            </section>
 
             {/* Últimas leituras */}
             <section
@@ -578,12 +680,13 @@ function TelaConferencia({
 
       <Modal aberto={confrontar} aoFechar={() => { setConfrontar(false); focar(); }} titulo={`Confronto · ${loja.loja_nome}`} largura="max-w-3xl">
         <Confronto linhas={linhas} />
+        <p className="mt-4 text-sm text-suave">{caixa.length ? `Ao finalizar, os itens da caixa ${volume} serão impressos como volume ${volume}/${volume}, e a lista temporária será descartada.` : "Conferência sem itens nesta caixa: nenhuma etiqueta será impressa."}</p>
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Botao variante="secundario" onClick={() => { setConfrontar(false); focar(); }}>
             Continuar bipando
           </Botao>
           <Botao variante="sucesso" icone={<CheckCheck className="size-4" />} carregando={finalizando} onClick={finalizar}>
-            Finalizar conferência
+            {caixa.length ? "Finalizar e imprimir última caixa" : "Finalizar sem etiqueta"}
           </Botao>
         </div>
       </Modal>

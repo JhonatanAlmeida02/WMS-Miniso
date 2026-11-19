@@ -11,6 +11,7 @@ import {
   Menu,
   PackagePlus,
   ScanBarcode,
+  Settings,
   Store,
   Truck,
   UserCog,
@@ -46,6 +47,7 @@ const MENU: ItemMenu[] = [
   { para: "/conferencia", texto: "Conferência", icone: ClipboardCheck, grupo: "Operação" },
   { para: "/usuarios", texto: "Usuários", icone: Users, grupo: "Cadastros" },
   { para: "/lojas", texto: "Lojas", icone: Store, grupo: "Cadastros" },
+  { para: "/configuracoes/etiqueta", texto: "Etiqueta", icone: Settings, grupo: "Configurações" },
   // Módulo das lojas: área separada, no fim do menu
   { para: "/lojas-miniso", texto: "Lojas MINISO", icone: Truck },
 ];

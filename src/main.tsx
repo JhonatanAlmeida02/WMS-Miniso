@@ -19,6 +19,7 @@ const LogBips = lazy(() => import("./pages/LogBips"));
 const Usuarios = lazy(() => import("./pages/Usuarios"));
 const Lojas = lazy(() => import("./pages/Lojas"));
 const Separacao = lazy(() => import("./pages/Separacao"));
+const ConfiguracaoEtiqueta = lazy(() => import("./pages/ConfiguracaoEtiqueta"));
 const Conferir = lazy(() => import("./pages/Conferir"));
 const InicioOperador = lazy(() => import("./pages/InicioOperador"));
 const Estatisticas = lazy(() => import("./pages/Estatisticas"));
@@ -100,6 +101,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/remessas/:id" element={<RemessaDetalhe />} />
               <Route path="/distribuicao" element={<Distribuicao />} />
               <Route path="/conferencia" element={<Conferencia />} />
+              <Route path="/configuracoes/etiqueta" element={<ConfiguracaoEtiqueta />} />
               {/* Módulo das lojas (área separada da separação do CD) */}
               <Route path="/lojas-miniso" element={<LojasMiniso />} />
               <Route path="/lojas-miniso/loja/:lojaId" element={<PainelLojaSupervisor />} />
